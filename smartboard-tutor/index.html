@@ -297,6 +297,13 @@ dialog .db{padding:14px 18px;overflow:auto;max-height:calc(100vh - 140px)}
       <select id="selVoice"></select>
       <span class="sub" id="voiceNote"></span>
       <div class="tip"><b>Tipp für bessere Stimmen:</b> Auf iPhone/iPad unter <i>Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen</i> eine Premium- oder Erweitert-Stimme (z. B. „Anna“, „Petra“) herunterladen. Auf dem Mac: <i>Systemeinstellungen → Bedienungshilfen → Gesprochene Inhalte → Systemstimme → Verwalten</i>. Danach die Seite neu laden.</div></div>
+    <div class="frow"><label>Piper-Stimme (offline, läuft auf dem Gerät)</label>
+      <span class="sub">Eine natürliche Stimme, die komplett im Browser rechnet, auch auf iPhone und iPad. Einmal herunterladen, hier importieren, fertig: Die Dateien bleiben in diesem Browser gespeichert und werden nirgendwohin geschickt.</span>
+      <div class="tip"><b>So geht's:</b><br>1. Zwei Dateien laden, Empfehlung Deutsch: <a href="https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/low/de_DE-thorsten-low.onnx?download=true" target="_blank" rel="noopener">de_DE-thorsten-low.onnx</a> (ca. 20 MB) und <a href="https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/low/de_DE-thorsten-low.onnx.json?download=true" target="_blank" rel="noopener">de_DE-thorsten-low.onnx.json</a>. Weitere Stimmen: <a href="https://huggingface.co/rhasspy/piper-voices/tree/main/de/de_DE" target="_blank" rel="noopener">Deutsch</a>, <a href="https://huggingface.co/rhasspy/piper-voices/tree/main" target="_blank" rel="noopener">alle Sprachen</a> (Qualität „low“ ist auf dem Handy am flüssigsten, „medium“ klingt besser, ca. 60 MB).<br>2. Beide Dateien unten auswählen (auf dem iPhone aus „Dateien“ › „Downloads“).</div>
+      <label class="file" style="margin-top:8px"><svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg><span>Piper-Dateien importieren (.onnx und .onnx.json)</span><input type="file" id="piperFiles" multiple accept=".onnx,.json,application/json,application/octet-stream"></label>
+      <span class="sub" id="piperStatus"></span>
+      <div class="seg" id="segEngine" style="margin-top:8px"><button type="button" data-v="browser">Browser-Stimme</button><button type="button" data-v="piper">Piper-Stimme</button></div>
+      <button type="button" id="piperRemove" hidden style="margin-top:8px">Piper-Stimme entfernen</button></div>
     <div class="frow"><label for="rngRate">Sprechtempo <span id="rateVal" class="sub"></span></label><input type="range" id="rngRate" min="0.7" max="1.3" step="0.05"></div>
     <div class="frow"><label for="rngPitch">Tonhöhe <span id="pitchVal" class="sub"></span></label><input type="range" id="rngPitch" min="0.8" max="1.2" step="0.05"></div>
     <div class="frow"><label class="sw"><span>Stumm (Text nur einblenden)</span><input type="checkbox" id="chkMute"></label></div>
@@ -332,7 +339,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
   del(k) { try { localStorage.removeItem(k); } catch (e) { } }
 };
-const DEFAULTS = { voiceURI: '', rate: 1, pitch: 1, muted: false, lang: 'de', level: 'mittelstufe', humor: 'locker', stt: false, speed: 1, shot: false, online: true };
+const DEFAULTS = { voiceURI: '', rate: 1, pitch: 1, muted: false, lang: 'de', level: 'mittelstufe', humor: 'locker', stt: false, speed: 1, shot: false, online: true, engine: 'browser' };
 const settings = Object.assign({}, DEFAULTS, store.get('sbt.settings', {}) || {});
 const saveSettings = () => store.set('sbt.settings', settings);
 if (settings.voiceMig !== 2) { settings.voiceMig = 2; settings.voiceURI = ''; settings.online = true; saveSettings(); }
@@ -588,19 +595,102 @@ async function whatIsThis(o) {
 /* ---------- Tutor-Gesicht ---------- */
 const face = { mood: 'neutral', setMood(m) { this.mood = m; }, setSpeaking() { }, setDrawing() { } };
 
+/* ---------- Piper: Offline-Stimme im Browser (ONNX Runtime + espeak-Phonemisierung) ---------- */
+const idb = {
+  open() { return new Promise((res, rej) => { try { const r = indexedDB.open('sbt', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } }); },
+  async get(k) { try { const db = await this.open(); return await new Promise((res, rej) => { const t = db.transaction('kv').objectStore('kv').get(k); t.onsuccess = () => res(t.result); t.onerror = () => rej(t.error); }); } catch (e) { return undefined; } },
+  async set(k, v) { try { const db = await this.open(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); return true; } catch (e) { return false; } },
+  async del(k) { try { const db = await this.open(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').delete(k); t.oncomplete = res; t.onerror = () => rej(t.error); }); } catch (e) { } }
+};
+const piper = {
+  voice: null, session: null, worker: null, loading: null, ready: false, actx: null, source: null, cache: new Map(), queue: Promise.resolve(), current: null, error: '',
+  async init() { const v = await idb.get('piperVoice'); if (v && v.model && v.config) { this.voice = v; } ui.piperState && ui.piperState(); },
+  usable() { return !!this.voice && settings.engine === 'piper'; },
+  unlock() { try { if (!this.actx) this.actx = new (window.AudioContext || window.webkitAudioContext)(); if (this.actx.state === 'suspended') this.actx.resume(); } catch (e) { } },
+  async importFiles(files) {
+    let model = null, config = null, name = '';
+    for (const f of files) { if (/\.json$/i.test(f.name)) { try { config = JSON.parse(await f.text()); } catch (e) { throw new Error('Die Konfigurationsdatei ist kein gültiges JSON.'); } } else if (/\.onnx$/i.test(f.name)) { model = f; name = f.name.replace(/\.onnx$/i, ''); } }
+    if (!model || !config) throw new Error('Bitte beide Dateien zusammen auswählen: die .onnx-Datei und die .onnx.json-Datei.');
+    if (!config.phoneme_id_map || !config.espeak || !config.audio) throw new Error('Das ist keine Piper-Konfiguration (phoneme_id_map, espeak, audio fehlen).');
+    const blob = new Blob([await model.arrayBuffer()], { type: 'application/octet-stream' });
+    const rec = { name, model: blob, config, size: blob.size, lang: (config.language && (config.language.code || config.language.family)) || config.espeak.voice, date: Date.now() };
+    const ok = await idb.set('piperVoice', rec); if (!ok) throw new Error('Die Stimme konnte in diesem Browser nicht gespeichert werden (Speicher voll oder privater Modus).');
+    this.dispose(); this.voice = rec; settings.engine = 'piper'; saveSettings(); ui.piperState();
+    await this.load();
+  },
+  async remove() { await idb.del('piperVoice'); this.dispose(); this.voice = null; settings.engine = 'browser'; saveSettings(); ui.piperState(); },
+  dispose() { try { if (this.session) this.session.release(); } catch (e) { } this.session = null; try { if (this.worker) this.worker.terminate(); } catch (e) { } this.worker = null; this.loading = null; this.ready = false; this.cache.clear(); this.error = ''; },
+  load() {
+    if (this.ready) return Promise.resolve(true); if (!this.voice) return Promise.resolve(false); if (this.loading) return this.loading;
+    this.loading = (async () => {
+      try {
+        setStatus('Piper-Stimme wird geladen…', 'busy');
+        if (!window.ort) { await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'ort/ort.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('ONNX-Laufzeit konnte nicht geladen werden.')); document.head.appendChild(sc); }); }
+        ort.env.wasm.wasmPaths = new URL('ort/', location.href).href; ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = true; ort.env.logLevel = 'error';
+        this.session = await ort.InferenceSession.create(await this.voice.model.arrayBuffer(), { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
+        this.worker = new Worker('piper/phonemize.worker.js', { type: 'module' }); this.worker.postMessage({ type: 'constructor', data: { basePath: './' } });
+        await this.call('loadModule', []);
+        this.ready = true; this.error = ''; ui.piperState(); return true;
+      } catch (e) { this.error = 'Piper konnte nicht starten: ' + (e && e.message || e); this.loading = null; this.ready = false; ui.piperState(); banner(this.error + ' Es wird die Browser-Stimme verwendet.', 'warn'); return false; }
+      finally { if (player.state !== 'playing') setStatus('Bereit'); }
+    })();
+    return this.loading;
+  },
+  call(type, data) { const w = this.worker; return new Promise((res, rej) => { const t = setTimeout(() => rej(new Error('Phonemisierung antwortet nicht')), 60000); w.onmessage = e => { clearTimeout(t); res(e.data); }; w.onerror = e => { clearTimeout(t); rej(new Error(e.message || 'Worker-Fehler')); }; w.postMessage({ type, data }); }); },
+  sentences(text) { return cleanForSpeech(text).split(/(?<=[.!?…])\s+(?=[^\s])/).map(t => t.trim()).filter(Boolean); },
+  synthSentence(text, rate) {
+    const key = text + '|' + rate.toFixed(2); if (this.cache.has(key)) return this.cache.get(key);
+    const job = this.queue.then(async () => {
+      const cfg = this.voice.config; const r = await this.call('phonemize', [text, [cfg]]); const ids = r.phoneme_ids || [];
+      if (!ids.length) return null;
+      const inf = cfg.inference || {}; const feeds = { input: new ort.Tensor('int64', BigInt64Array.from(ids.map(i => BigInt(i))), [1, ids.length]), input_lengths: new ort.Tensor('int64', BigInt64Array.from([BigInt(ids.length)]), [1]), scales: new ort.Tensor('float32', Float32Array.from([inf.noise_scale ?? 0.667, (inf.length_scale ?? 1) / rate, inf.noise_w ?? 0.8]), [3]) };
+      if ((cfg.num_speakers || 1) > 1) feeds.sid = new ort.Tensor('int64', BigInt64Array.from([BigInt(settings.piperSpeaker || 0)]), [1]);
+      const out = await this.session.run(feeds); const data = out.output.data; const sr = (cfg.audio && cfg.audio.sample_rate) || 22050;
+      return { data: Float32Array.from(data), sr };
+    });
+    this.queue = job.catch(() => { }); this.cache.set(key, job); if (this.cache.size > 24) this.cache.delete(this.cache.keys().next().value);
+    job.catch(() => this.cache.delete(key)); return job;
+  },
+  prefetch(text) { if (!this.usable() || !this.ready || !text) return; const rate = clamp(settings.rate * (settings.speed || 1), 0.5, 2); for (const sn of this.sentences(text)) this.synthSentence(sn, rate).catch(() => { }); },
+  speak(text, tk) {
+    return new Promise(async res => {
+      const done = () => { if (this.current && this.current.res === res) this.current = null; face.setSpeaking(false); res(); };
+      this.current = { res, stop: null };
+      const rate = clamp(settings.rate * (settings.speed || 1), 0.5, 2); const parts = this.sentences(text); if (!parts.length) return done();
+      if (!this.ready) { const ok = await this.load(); if (!ok || player.token !== tk || this.current?.res !== res) return done(); }
+      this.unlock();
+      const jobs = parts.map(p => this.synthSentence(p, rate));
+      let waitShown = false;
+      for (let i = 0; i < jobs.length; i++) {
+        if (this.current?.res !== res) return;
+        let a = null; const t0 = performance.now();
+        try { if (!waitShown) { const probe = await Promise.race([jobs[i], sleep(300).then(() => 'slow')]); if (probe === 'slow') { waitShown = true; setStatus('Stimme wird berechnet…', 'busy'); } } a = await jobs[i]; } catch (e) { this.error = 'Piper-Fehler: ' + (e && e.message || e); console.warn(this.error); a = null; }
+        if (this.current?.res !== res) return;
+        if (waitShown) { setStatus('Tutor erklärt', 'busy'); waitShown = false; }
+        if (!a) { await sleep(Math.max(300, parts[i].length * 60 / rate)); continue; }
+        await new Promise(r2 => { try { const buf = this.actx.createBuffer(1, a.data.length, a.sr); buf.copyToChannel(a.data, 0); const src = this.actx.createBufferSource(); src.buffer = buf; src.connect(this.actx.destination); src.onended = r2; this.source = src; this.current.stop = () => { try { src.onended = null; src.stop(); } catch (e) { } r2(); }; face.setSpeaking(true); src.start(); } catch (e) { r2(); } });
+        if (i < jobs.length - 1) await sleep(180);
+      }
+      done();
+    });
+  },
+  cancel() { if (this.current) { const c = this.current; this.current = null; if (c.stop) c.stop(); c.res(); } face.setSpeaking(false); }
+};
+
 /* ---------- Sprachausgabe ---------- */
 const speech = {
   voices: [], all: [], current: null, utter: null, unlocked: false, tick: 0,
   refilter() { this.voices = (this.all || []).filter(v => settings.online || v.localService !== false); },
   init() { if (!('speechSynthesis' in window)) { ui.fillVoices(); return; } const load = () => { this.all = speechSynthesis.getVoices() || []; this.voices = this.all.filter(v => settings.online || v.localService !== false); ui.fillVoices(); }; load(); speechSynthesis.addEventListener('voiceschanged', load); setTimeout(load, 800); },
-  available() { return 'speechSynthesis' in window && this.voices.length > 0; },
+  available() { return piper.usable() || ('speechSynthesis' in window && this.voices.length > 0); },
   forLang() { const l = settings.lang; return this.voices.filter(v => (v.lang || '').toLowerCase().replace('_', '-').startsWith(l)); },
   score(v) { const n = (v.name || '').toLowerCase(); let s = 0; if (settings.online && v.localService === false) s += 100; if (/natural|neural|wavenet|studio/.test(n)) s += 30; if (/online/.test(n)) s += 10; if (/google/.test(n)) s += 8; if (/premium/.test(n)) s += 30; if (/enhanced|erweitert|verbessert/.test(n)) s += 20; if (/siri/.test(n)) s += 12; if (/natural|neural/.test(n)) s += 10; if (/anna|petra|markus|helena|viktor|martin|yannick/.test(n)) s += 5; if (v.default) s += 3; if (/compact|kompakt/.test(n)) s -= 10; return s; },
   pick() { const list = this.forLang(); if (settings.voiceURI) { const v = list.find(v => v.voiceURI === settings.voiceURI); if (v) return v; } return list.sort((a, b) => this.score(b) - this.score(a))[0] || null; },
   estimate(text) { return Math.max(900, String(text).length * 64 / (settings.rate * (settings.speed || 1))); },
-  cancel() { clearInterval(this.tick); if (this.current) { const c = this.current; this.current = null; clearTimeout(c.timer); c.res(); } if ('speechSynthesis' in window) { try { speechSynthesis.cancel(); } catch (e) { } } face.setSpeaking(false); },
+  cancel() { piper.cancel(); clearInterval(this.tick); if (this.current) { const c = this.current; this.current = null; clearTimeout(c.timer); c.res(); } if ('speechSynthesis' in window) { try { speechSynthesis.cancel(); } catch (e) { } } face.setSpeaking(false); },
   speak(text, tk) {
     this.cancel(); text = cleanForSpeech(text);
+    if (piper.usable() && !settings.muted && text) return piper.speak(text, tk);
     return new Promise(res => {
       const est = this.estimate(text); const voice = this.pick();
       const finish = () => { if (this.current && this.current.res === res) this.current = null; face.setSpeaking(false); res(); };
@@ -629,6 +719,7 @@ const player = {
   async run(tk) {
     while (this.state === 'playing' && this.token === tk && this.i < this.program.length) {
       const step = this.program[this.i]; setStatus('Tutor erklärt', 'busy'); ui.progress();
+      if (this.program[this.i + 1]) piper.prefetch(this.program[this.i + 1].say);
       await runStep(step, tk); if (this.token !== tk) return;
       if (step.check) { this.state = 'check'; ui.playState(); const ok = await askCheck(step.check, tk); if (this.token !== tk) return; if (!ok) return; this.state = 'playing'; ui.playState(); }
       this.i++; ui.progress(); if (this.token !== tk) return;
@@ -1012,7 +1103,15 @@ const ui = {
     else { sel.disabled = false; const auto = document.createElement('option'); auto.value = ''; auto.textContent = 'Automatisch (beste gefundene)'; sel.appendChild(auto); for (const v of list.slice().sort((a, b) => speech.score(b) - speech.score(a))) { const o = document.createElement('option'); o.value = v.voiceURI; o.textContent = v.name + ' (' + v.lang + (v.localService === false ? ', online' : '') + ')'; sel.appendChild(o); } sel.value = list.some(v => v.voiceURI === settings.voiceURI) ? settings.voiceURI : ''; const on = list.filter(v => v.localService === false).length; const cur = speech.pick(); $('#voiceNote').textContent = `${list.length} Stimme${list.length === 1 ? '' : 'n'} für diese Sprache gefunden` + (on ? `, davon ${on} online.` : '.') + (cur ? ` Spricht gerade: ${cur.name}${cur.localService === false ? ' (online)' : ' (auf dem Gerät)'}.` : '') + (settings.online && !on ? ' Online-Stimmen gibt es nur in Chrome und Edge am Computer oder Android. Safari, iPhone und iPad stellen Webseiten ausschließlich Gerätestimmen zur Verfügung; dort hilft nur eine bessere Premium-Stimme (Tipp unten).' : ''); }
     $('#caption').classList.toggle('big', settings.muted || !speech.available());
   },
-  syncSettings() {
+  piperState() {
+    const st = $('#piperStatus'); const v = piper.voice;
+    for (const b of $('#segEngine').children) { b.classList.toggle('on', b.dataset.v === settings.engine); b.disabled = b.dataset.v === 'piper' && !v; }
+    $('#piperRemove').hidden = !v;
+    if (!v) st.textContent = 'Noch keine Piper-Stimme importiert.';
+    else st.textContent = `Importiert: ${v.name} (${(v.size / 1048576).toFixed(0)} MB, Sprache ${v.lang || '?'})` + (piper.error ? ' · ' + piper.error : piper.ready ? ' · bereit' : settings.engine === 'piper' ? ' · wird beim ersten Sprechen geladen' : '');
+    $('#caption').classList.toggle('big', settings.muted || !speech.available());
+  },
+  syncSettings() { this.piperState();
     for (const [seg, key] of [['#segLevel', 'level'], ['#segHumor', 'humor']]) for (const b of $(seg).children) b.classList.toggle('on', b.dataset.v === settings[key]);
     $('#selLang').value = settings.lang; $('#rngRate').value = settings.rate; $('#rateVal').textContent = settings.rate.toFixed(2).replace('.', ',') + '×'; $('#rngPitch').value = settings.pitch; $('#pitchVal').textContent = settings.pitch.toFixed(2).replace('.', ',');
     $('#chkMute').checked = settings.muted; $('#chkStt').checked = settings.stt; $('#chkOnline').checked = !!settings.online; $('#speed').value = settings.speed; $('#speedVal').textContent = settings.speed.toFixed(1).replace('.', ',') + '×';
@@ -1024,13 +1123,13 @@ const ui = {
 };
 
 /* Buttons */
-$('#btnPlay').addEventListener('click', () => { speech.unlocked = true; if (player.state === 'playing') player.pause(); else if (player.state === 'check') { /* wartet auf Antwort */ } else if (player.program.length) player.play(); else startLesson(DEMO); });
+$('#btnPlay').addEventListener('click', () => { speech.unlocked = true; if (piper.usable()) piper.unlock(); if (player.state === 'playing') player.pause(); else if (player.state === 'check') { /* wartet auf Antwort */ } else if (player.program.length) player.play(); else startLesson(DEMO); });
 $('#btnPrev').addEventListener('click', () => player.prev());
 $('#btnNext').addEventListener('click', () => player.next());
 $('#btnStop').addEventListener('click', () => player.stop());
 $('#btnMute').addEventListener('click', () => { settings.muted = !settings.muted; saveSettings(); ui.syncSettings(); if (settings.muted) speech.cancel(); });
 $('#speed').addEventListener('input', e => { settings.speed = parseFloat(e.target.value) || 1; $('#speedVal').textContent = settings.speed.toFixed(1).replace('.', ',') + '×'; saveSettings(); });
-$('#btnDemo').addEventListener('click', () => { speech.unlocked = true; startLesson(DEMO); });
+$('#btnDemo').addEventListener('click', () => { speech.unlocked = true; if (piper.usable()) piper.unlock(); startLesson(DEMO); });
 $('#tHand').addEventListener('click', () => setTool('hand')); $('#tPen').addEventListener('click', () => setTool('pen')); $('#tEraser').addEventListener('click', () => setTool('eraser'));
 $('#tClearInk').addEventListener('click', () => ink.clear());
 $('#tZoomIn').addEventListener('click', () => board.zoomAt(1.25, board.cw / 2, board.ch / 2)); $('#tZoomOut').addEventListener('click', () => board.zoomAt(0.8, board.cw / 2, board.ch / 2)); $('#tFit').addEventListener('click', () => board.fit());
@@ -1046,10 +1145,13 @@ $('#rngRate').addEventListener('input', e => { settings.rate = parseFloat(e.targ
 $('#rngPitch').addEventListener('input', e => { settings.pitch = parseFloat(e.target.value); saveSettings(); ui.syncSettings(); });
 $('#chkMute').addEventListener('change', e => { settings.muted = e.target.checked; saveSettings(); ui.syncSettings(); });
 $('#chkOnline').addEventListener('change', e => { settings.online = e.target.checked; settings.voiceURI = ''; saveSettings(); speech.refilter(); ui.syncSettings(); });
+$('#segEngine').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.disabled) return; settings.engine = b.dataset.v; saveSettings(); speech.cancel(); ui.piperState(); if (settings.engine === 'piper') piper.load(); });
+$('#piperRemove').addEventListener('click', () => { if ($('#piperRemove').dataset.arm) { piper.remove(); $('#piperRemove').dataset.arm = ''; $('#piperRemove').textContent = 'Piper-Stimme entfernen'; } else { $('#piperRemove').dataset.arm = '1'; $('#piperRemove').textContent = 'Wirklich entfernen?'; setTimeout(() => { $('#piperRemove').dataset.arm = ''; $('#piperRemove').textContent = 'Piper-Stimme entfernen'; }, 3000); } });
+$('#piperFiles').addEventListener('change', async e => { const files = [...(e.target.files || [])]; if (!files.length) return; $('#piperStatus').textContent = 'Wird importiert…'; try { piper.unlock(); await piper.importFiles(files); } catch (err) { $('#piperStatus').textContent = (err && err.message) || 'Import fehlgeschlagen.'; } e.target.value = ''; });
 $('#chkStt').addEventListener('change', e => { settings.stt = e.target.checked; saveSettings(); ui.syncSettings(); });
-$('#btnTestVoice').addEventListener('click', () => { const t = settings.lang === 'de' ? 'Hallo! Ich bin dein Tutor. Hörst du mich gut?' : 'Hello! I am your tutor. Can you hear me well?'; const tk = player.token; face.setMood('cheer'); speech.speak(t, tk).then(() => face.setMood('neutral')); });
+$('#btnTestVoice').addEventListener('click', () => { if (piper.usable()) piper.unlock(); const t = settings.lang === 'de' ? 'Hallo! Ich bin dein Tutor. Hörst du mich gut?' : 'Hello! I am your tutor. Can you hear me well?'; const tk = player.token; face.setMood('cheer'); speech.speak(t, tk).then(() => face.setMood('neutral')); });
 for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { ui.mode = b.dataset.mode; for (const x of document.querySelectorAll('.tabs button')) { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); } $('#hwExtras').hidden = ui.mode !== 'homework'; $('#askTitle').textContent = ui.mode === 'homework' ? 'Bei welcher Aufgabe soll ich helfen?' : 'Was möchtest du heute lernen?'; $('#chips').hidden = ui.mode === 'homework'; $('#hwNote').textContent = (ai.ready && !(ai.limits && ai.limits.images)) ? 'Fotos können in dieser Ansicht nicht mitgeschickt werden; bitte den Aufgabentext eintippen. Der Tutor gibt keine fertige Lösung, sondern führt dich mit Hinweisen hin.' : 'Der Tutor gibt keine fertige Lösung, sondern führt dich mit Hinweisen hin. Mit „Lösung zeigen“ kannst du sie dir später trotzdem anzeigen lassen.'; $('#topic').placeholder = ui.mode === 'homework' ? 'Aufgabentext hier eintippen oder ein Foto wählen' : 'Thema oder Frage, z. B. „Brüche addieren“'; });
-$('#startForm').addEventListener('submit', e => { e.preventDefault(); speech.unlocked = true; const topic = $('#topic').value.trim(); if (ai.ready) { ai.startLesson(topic, ui.mode); } else { $('#startHint').textContent = 'Die KI-Funktion ist hier nicht verfügbar. Es läuft die eingebaute Demo-Lektion.'; startLesson(DEMO); } });
+$('#startForm').addEventListener('submit', e => { e.preventDefault(); speech.unlocked = true; if (piper.usable()) piper.unlock(); const topic = $('#topic').value.trim(); if (ai.ready) { ai.startLesson(topic, ui.mode); } else { $('#startHint').textContent = 'Die KI-Funktion ist hier nicht verfügbar. Es läuft die eingebaute Demo-Lektion.'; startLesson(DEMO); } });
 $('#btnAbort').addEventListener('click', () => ai.abort());
 $('#btnMic').addEventListener('click', () => stt.toggle());
 $('#btnSolution').addEventListener('click', () => { if (player.lesson && player.lesson.mode === 'homework') ai.ask('Bitte zeig mir die Lösung.', { solution: true }); });
@@ -1070,7 +1172,7 @@ if (document.fonts && document.fonts.load) { Promise.all([document.fonts.load('6
 document.addEventListener('visibilitychange', () => { if (document.hidden && player.state === 'playing') player.pause(); });
 
 function idleScene() { if (player.program.length) return; board.objects = []; for (const op of [{ op: 'text', id: 'i1', x: 80, y: 60, text: 'Hallo! Ich bin dein Tafel-Tutor.', size: 52 }, { op: 'text', id: 'i2', x: 80, y: 150, text: 'Tipp oben ein Thema ein, dann erkläre ich es Schritt für Schritt – und zeichne dabei hier auf die Tafel.', size: 30, w: 1000 }, { op: 'box', id: 'i3', x: 80, y: 300, w: 300, h: 90, label: 'Dein Thema' }, { op: 'box', id: 'i4', x: 560, y: 300, w: 300, h: 90, label: 'kleine Schritte', color: 'green' }, { op: 'box', id: 'i5', x: 1040, y: 300, w: 300, h: 90, label: 'Quiz am Ende', color: 'purple' }, { op: 'arrow', id: 'i6', from: 'i3', to: 'i4', label: 'erklären' }, { op: 'arrow', id: 'i7', from: 'i4', to: 'i5', label: 'üben' }, { op: 'formula', id: 'i8', x: 80, y: 520, latex: 'a^2 + b^2 = c^2' }, { op: 'formula', id: 'i9', x: 520, y: 520, latex: '\\frac{1}{2} + \\frac{1}{4} = \\frac{3}{4}' }, { op: 'text', id: 'i10', x: 80, y: 700, text: 'Du kannst jederzeit nachfragen, selbst mitzeichnen und Objekte antippen.', size: 28, color: 'grey' }]) applyOp(op, true); board.dirty = true; kick(); }
-theme.refresh(); board.resize(); speech.init(); ui.syncSettings(); ui.playState(); setStatus('Bereit'); idleScene(); ai.init();
-window.__sbt = { board, player, DEMO, startLesson, settings, ai, Formula };
+theme.refresh(); board.resize(); speech.init(); piper.init(); ui.syncSettings(); ui.playState(); setStatus('Bereit'); idleScene(); ai.init();
+window.__sbt = { board, player, DEMO, startLesson, settings, ai, Formula, piper, speech };
 })();
 </script>
