@@ -746,8 +746,150 @@ const DEMO = {
   ]
 };
 
-/* ---------- KI-Anbindung (Etappe 2 folgt) ---------- */
-const ai = { ready: false, sample: null, downloads: null, limits: null, ask() { }, judge() { return null; } };
+/* ---------- KI-Anbindung über die Artifact-Funktion "sample" ---------- */
+const LEVELS = { grundschule: 'Grundschule (etwa 8 bis 10 Jahre): sehr einfache Wörter, Alltagsbeispiele, kleine Zahlen, kein Fachwort ohne Erklärung.', mittelstufe: 'Mittelstufe (etwa 12 bis 15 Jahre): klare Fachbegriffe mit Erklärung, Beispiele aus dem Alltag, Formeln einfach halten.', oberstufe: 'Oberstufe (etwa 16 bis 19 Jahre): präzise Fachsprache, kurze Herleitungen, Formeln, Bezug zum Abiturwissen.', studium: 'Studium: fachlich exakt, Definitionen und Notation, auch abstraktere Beispiele; trotzdem anschaulich.' };
+const HUMORS = { sachlich: 'Humor-Stärke: sachlich. Freundlich und warm, aber keine Witze und kein Lachen.', locker: 'Humor-Stärke: locker. Gelegentlich ein kleiner Witz, ein anschaulicher Vergleich oder ein augenzwinkernder Kommentar (zum Beispiel: "Ja, Brüche sehen fies aus. Sind sie aber nicht."). Höchstens ein- bis zweimal pro Lektion ein kurzes "Haha" oder "Hehe" an einer passenden Stelle.', albern: 'Humor-Stärke: albern. Öfter schräge Vergleiche und kleine Witze, bis zu zweimal pro Lektion ein kurzes Lachen ("Haha", "Hehe"). Trotzdem gilt: jeder Schritt hat echten Lerninhalt, der Humor bleibt kurz.' };
+const LANG_NAMES = { de: 'Deutsch', en: 'Englisch', fr: 'Französisch', es: 'Spanisch', it: 'Italienisch', tr: 'Türkisch' };
+const STEP_FORMAT = '{"say":"gesprochener Satz (kurz, Alltagssprache, kein LaTeX)","mood":"neutral|explain|laugh|think|cheer","check":{"question":"...","options":["...","...","..."],"answer":0,"explain":"ein Satz Begründung"},"draw":[{"op":"box","id":"b1","x":80,"y":200,"w":320,"h":80,"label":"..."},{"op":"text","id":"t1","x":80,"y":60,"text":"...","size":32},{"op":"formula","id":"f1","x":80,"y":400,"latex":"\\\\frac{1}{2}"},{"op":"arrow","id":"a1","from":"b1","to":"f1","label":"..."},{"op":"line","id":"l1","points":[[100,700],[500,700]]},{"op":"circle","id":"c1","cx":900,"cy":500,"r":90,"label":"..."},{"op":"highlight","target":"b1"},{"op":"erase","target":"t1"}]}';
+function systemPrompt(opts) {
+  const lang = LANG_NAMES[settings.lang] || 'Deutsch';
+  const extraPhrases = (settings.lang !== 'de' && settings.lang !== 'en') ? '\n- Zusätzlich ein Feld "phrases" mit festen Sätzen in der Lektionssprache: {"summaryIntro":"Kurz zusammengefasst:","summaryTitle":"Zusammenfassung","correct":"Genau!","wrong":"Fast. Du hast {a} gesagt. Was stimmt: {b}.","typedOk":"Danke. Die Lösung ist: {b}.","quizIntro":"Zum Schluss ein kleines Quiz.","quizDone":"{n} von {m} richtig.","quizGreat":"Stark!","quizOk":"Gut gemacht.","quizLow":"Kein Problem, dafür ist Üben da.","end":"Das war die Lektion.","whatIs":"Was ist das?"} (Platzhalter {a}, {b}, {n}, {m} beibehalten).' : '';
+  return `Du bist ein Tafel-Tutor: ein lockerer, warmer Nachhilfelehrer, der sein Fach liebt. Du sprichst den Lernenden per Du an, in kurzen gesprochenen Sätzen und Alltagssprache, wie ein entspannter guter Lehrer am Smartboard. Während du sprichst, schreibst und zeichnest du auf eine Tafel.
+
+PERSÖNLICHKEIT
+- ${HUMORS[settings.humor] || HUMORS.locker}
+- Humor ist Beiwerk, nie Ersatz für Inhalt. Jeder Schritt hat einen echten Lerninhalt. Der Humor verlängert oder verwässert die Erklärung nicht.
+- Du lachst nie über den Lernenden und nie bei Fehlern des Lernenden.
+- Fehler des Lernenden löst du freundlich und konkret auf: erst sagen, was richtig war, dann den Fehler zeigen, dann denselben Punkt anders erklären. Nie "falsch" ohne Hilfe.
+
+DIDAKTIK (nicht verhandelbar)
+- Niveau: ${LEVELS[settings.level] || LEVELS.mittelstufe} Wortwahl, Tiefe und Beispiele passen dazu.
+- Ein Gedanke pro Schritt. Vom Bekannten zum Neuen. Jedes neue Konzept bekommt ein konkretes Beispiel auf der Tafel.
+- Etwa nach jedem dritten Schritt eine kurze Verständnisfrage im Feld "check" ("Was glaubst du, passiert, wenn ..."): 2 bis 3 Optionen, "answer" ist der Index (ab 0) der richtigen Option, "explain" begründet in einem Satz. Nur Schritte mit Verständnisfrage haben "check".
+- Am Ende "summary" mit genau 3 kurzen Punkten (je höchstens 90 Zeichen) und "quiz" mit genau 3 Fragen (je 3 Optionen, "answer" Index, "explain" kurze Rückmeldung).${extraPhrases}
+
+SPRACHE
+- Sprache der Lektion: ${lang}. Alle Felder "say", "label", "text", "question", "options", "explain", "summary" und "quiz" in dieser Sprache. Die Feldnamen bleiben Englisch.
+- "say" ist gesprochener Text: 1 bis 3 kurze Sätze, keine LaTeX-Befehle, keine Sonderzeichen, Formeln in Worten ("a Quadrat plus b Quadrat"). In "question", "options", "explain", "summary" und im Quiz dürfen kurze Formeln in $...$ stehen.
+
+TAFEL-LAYOUT
+- Koordinaten: x von 0 bis 1600, y von 0 bis 900, Ursprung oben links. Lesefluss von oben links nach unten rechts: Titel oben links (text, size 48, y 50), neue Inhalte eines Schritts rechts neben oder unterhalb der vorherigen.
+- Keine Überlappungen. Mindestens 30 Einheiten Abstand zwischen Objekten. Platzbedarf: Text braucht etwa 15 Einheiten Breite pro Zeichen (bei size 32) und 40 Höhe pro Zeile; eine Formel etwa 26 pro Zeichen Breite und 120 Höhe mit Bruch (sonst 60); ein Kasten braucht w mindestens 15 mal Zeichenzahl des Labels plus 40 (lange Labels werden umgebrochen, dann h erhöhen) und h mindestens 70. Alles muss innerhalb der Tafel bleiben (x + w <= 1560, y + h <= 860).
+- 6 bis 12 Schritte, pro Schritt 1 bis 4 Zeichenoperationen. Wenn der Platz knapp wird: {"op":"erase","target":"id"} für Objekte, die nicht mehr gebraucht werden, oder {"op":"clear"} für eine leere Tafel (nur bei einem neuen Abschnitt, höchstens zweimal pro Lektion).
+- Jedes Objekt bekommt eine eindeutige "id" (b1, t2, f3, ...). "arrow" verbindet zwei vorhandene ids über "from" und "to" (keine Koordinaten nötig), optional "label". "highlight" hebt ein vorhandenes Objekt hervor, während davon gesprochen wird. "line" mit "points" [[x,y],[x,y],...] für Skizzen (Achsen, Kurven als Punktfolge, Verbindungen). "circle" mit cx, cy, r und optionalem label.
+- Optional "color" bei box, text, arrow, circle, line: "blue", "green", "purple", "red", "ink" (Standard). Rot nur für Fehler oder Warnungen.
+- Optional "size" bei text (Standard 32, Titel 48) und formula (Standard 44).
+- "latex" nur mit einfachen Befehlen: \\frac, \\sqrt, ^, _, \\cdot, \\times, \\pm, \\le, \\ge, \\neq, \\to, \\pi, griechische Buchstaben, \\sin, \\cos, \\text{...}. Keine Umgebungen (align, matrix, cases).
+- "mood" pro Schritt: "neutral", "explain", "laugh" (nur wenn im Text wirklich gelacht wird), "think" oder "cheer".
+${opts && opts.homework ? `
+HAUSAUFGABEN-MODUS
+- Der Lernende hat eine konkrete Aufgabe. Du gibst KEINE fertige Lösung und nennst KEIN Endergebnis. Du führst mit Hinweisen und Zwischenfragen zur Lösung: Aufgabe in eigenen Worten wiederholen, benötigtes Wissen aktivieren, den ersten Schritt an einer ähnlichen Aufgabe mit anderen Zahlen vormachen, dann den Lernenden den eigentlichen Schritt selbst machen lassen (als "check" mit Optionen, die Optionen enthalten nicht das Endergebnis der Aufgabe).
+- "summary": 3 Punkte, wie man an solche Aufgaben herangeht. "quiz": 3 Fragen zu den Teilschritten, ohne das Endergebnis zu verraten.` : ''}`;
+}
+function lessonPrompt(topic, mode, hasPhoto) {
+  const sys = systemPrompt({ homework: mode === 'homework' });
+  const task = mode === 'homework' ? `AUFGABE DES LERNENDEN${hasPhoto ? ' (siehe Foto; lies die Aufgabe zuerst ab)' : ''}:\n${topic || '(nur auf dem Foto)'}` : `THEMA ODER FRAGE DES LERNENDEN:\n${topic}`;
+  return `${sys}\n\n${task}\n\nAntworte NUR mit einem JSON-Objekt in genau diesem Format, ohne Text davor oder danach:\n{"title":"kurzer Titel","steps":[ ${STEP_FORMAT} , ... 6 bis 12 Schritte ...],"summary":["...","...","..."],"quiz":[{"q":"...","options":["...","...","..."],"answer":1,"explain":"..."}, ... 3 Fragen ...]}`;
+}
+function boardDescription() {
+  const list = board.objects.filter(o => o.alive !== false && o.bbox);
+  if (!list.length) return '(Die Tafel ist leer.)';
+  return list.map(o => { const b = o.bbox; const pos = `(x ${Math.round(b.x)}, y ${Math.round(b.y)}, Breite ${Math.round(b.w)}, Höhe ${Math.round(b.h)})`; if (o.type === 'text') return `- text "${o.id}" ${pos}: "${o.text}"`; if (o.type === 'formula') return `- formula "${o.id}" ${pos}: ${o.latex}`; if (o.type === 'box') return `- box "${o.id}" ${pos}: "${o.label || ''}"`; if (o.type === 'circle') return `- circle "${o.id}" ${pos}: "${o.label || ''}"`; if (o.type === 'arrow') return `- arrow "${o.id}" von "${o.from || '?'}" nach "${o.to || '?'}"${o.label ? ': "' + o.label + '"' : ''}`; return `- line "${o.id}" ${pos}`; }).join('\n');
+}
+function lessonSoFar() {
+  if (!player.lesson) return '(Noch keine Lektion.)';
+  const steps = player.program.slice(0, Math.min(player.program.length, player.summaryStart));
+  return `Titel: ${player.lesson.title || ''}\n` + steps.map((s, k) => `${k + 1}. ${k === player.i ? '[AKTUELL] ' : ''}${s.say}`).join('\n');
+}
+function normNum(v, lo, hi, d) { v = Number(v); return Number.isFinite(v) ? clamp(v, lo, hi) : d; }
+function normOp(op) {
+  if (!op || typeof op !== 'object' || typeof op.op !== 'string') return null; const k = op.op.toLowerCase(); const id = typeof op.id === 'string' ? op.id : undefined; const color = typeof op.color === 'string' ? op.color.toLowerCase() : undefined;
+  switch (k) {
+    case 'box': return { op: 'box', id, x: normNum(op.x, 0, W - 60, 80), y: normNum(op.y, 0, H - 50, 100), w: normNum(op.w, 60, W, 300), h: normNum(op.h, 44, H, 80), label: String(op.label || op.text || ''), color, size: op.size ? normNum(op.size, 14, 60, 28) : undefined };
+    case 'text': return { op: 'text', id, x: normNum(op.x, 0, W - 40, 80), y: normNum(op.y, 0, H - 30, 100), text: String(op.text || op.label || ''), size: op.size ? normNum(op.size, 14, 72, 32) : undefined, w: op.w ? normNum(op.w, 100, W, undefined) : undefined, color };
+    case 'formula': return { op: 'formula', id, x: normNum(op.x, 0, W - 40, 80), y: normNum(op.y, 0, H - 30, 100), latex: String(op.latex || op.text || ''), size: op.size ? normNum(op.size, 16, 80, 44) : undefined, color };
+    case 'arrow': return { op: 'arrow', id, from: typeof op.from === 'string' ? op.from : undefined, to: typeof op.to === 'string' ? op.to : undefined, x1: op.x1 != null ? normNum(op.x1, 0, W, 0) : undefined, y1: op.y1 != null ? normNum(op.y1, 0, H, 0) : undefined, x2: op.x2 != null ? normNum(op.x2, 0, W, 0) : undefined, y2: op.y2 != null ? normNum(op.y2, 0, H, 0) : undefined, label: op.label ? String(op.label) : undefined, color };
+    case 'line': { const pts = Array.isArray(op.points) ? op.points.filter(p => Array.isArray(p) && p.length >= 2).map(p => [normNum(p[0], 0, W, 0), normNum(p[1], 0, H, 0)]) : []; return pts.length >= 2 ? { op: 'line', id, points: pts, color, width: op.width ? normNum(op.width, 1, 12, 4) : undefined } : null; }
+    case 'circle': return { op: 'circle', id, cx: normNum(op.cx, 0, W, 300), cy: normNum(op.cy, 0, H, 300), r: normNum(op.r, 10, 400, 80), label: op.label ? String(op.label) : '', color };
+    case 'highlight': return op.target ? { op: 'highlight', target: String(op.target) } : null;
+    case 'erase': return op.target ? { op: 'erase', target: String(op.target) } : null;
+    case 'clear': return { op: 'clear' };
+  }
+  return null;
+}
+function normStep(s) {
+  if (!s || typeof s !== 'object') return null; const say = String(s.say || s.text || '').trim(); const draw = Array.isArray(s.draw) ? s.draw.map(normOp).filter(Boolean) : [];
+  if (!say && !draw.length) return null;
+  const st = { say, mood: ['neutral', 'explain', 'laugh', 'think', 'cheer'].includes(s.mood) ? s.mood : 'explain', draw };
+  if (s.check && typeof s.check === 'object' && s.check.question && Array.isArray(s.check.options) && s.check.options.length >= 2) st.check = { question: String(s.check.question), options: s.check.options.slice(0, 4).map(String), answer: clamp(Number(s.check.answer) || 0, 0, Math.min(3, s.check.options.length - 1)), explain: s.check.explain ? String(s.check.explain) : '' };
+  return st;
+}
+function normalizeLesson(raw, meta) {
+  if (!raw || typeof raw !== 'object') return null; if (Array.isArray(raw.steps) === false && Array.isArray(raw.lesson && raw.lesson.steps)) raw = raw.lesson;
+  const steps = (Array.isArray(raw.steps) ? raw.steps : []).map(normStep).filter(Boolean); if (!steps.length) return null;
+  const quiz = (Array.isArray(raw.quiz) ? raw.quiz : []).filter(q => q && (q.q || q.question) && Array.isArray(q.options) && q.options.length >= 2).map(q => ({ q: String(q.q || q.question), options: q.options.slice(0, 4).map(String), answer: clamp(Number(q.answer) || 0, 0, Math.min(3, q.options.length - 1)), explain: q.explain ? String(q.explain) : '' })).slice(0, 3);
+  const phrases = raw.phrases && typeof raw.phrases === 'object' ? Object.fromEntries(Object.entries(raw.phrases).filter(([k, v]) => typeof v === 'string' && v.trim()).map(([k, v]) => [k, v])) : undefined;
+  return Object.assign({ title: String(raw.title || meta.topic || 'Lektion').slice(0, 120), steps, summary: (Array.isArray(raw.summary) ? raw.summary : []).map(String).filter(Boolean).slice(0, 3), quiz, phrases }, meta);
+}
+const AI_ERRORS = {
+  not_granted: ['Du hast der Seite nicht erlaubt, Claude zu nutzen. Die KI-Funktionen sind ausgeblendet; die Demo-Lektion läuft trotzdem.', true],
+  sampling_disabled: ['Claude ist für dieses Konto hier nicht verfügbar. Die Demo-Lektion läuft trotzdem.', true],
+  not_declared: ['Die KI-Funktion ist in dieser Ansicht nicht freigeschaltet.', true], capability_disabled: ['Die KI-Funktion ist in dieser Ansicht nicht nutzbar.', true], capability_removed: ['Diese Ansicht ist zu alt für die KI-Funktion. Bitte die App aktualisieren.', true],
+  rate_limited: ['Gerade zu viele Anfragen, oder dein Claude-Kontingent ist für den Moment aufgebraucht. Warte ein paar Minuten und tippe dann noch einmal auf den Knopf. Die Seite wiederholt nichts von selbst.', false],
+  session_expired: ['Deine Claude-Anmeldung ist abgelaufen. Bitte neu anmelden und die Seite neu laden.', false],
+  refused: ['Dazu möchte der Tutor nichts sagen. Formuliere die Anfrage bitte anders.', false],
+  invalid_json: ['Der Tutor hat sich bei der Tafelplanung verhaspelt. Bitte noch einmal versuchen, gern mit einem etwas konkreteren Thema.', false],
+  empty_completion: ['Der Tutor hat nichts geliefert. Bitte das Thema etwas konkreter beschreiben.', false],
+  prompt_too_large: ['Die Anfrage ist zu lang. Kürze den Text oder das Foto.', false],
+  image_rejected: ['Das Foto konnte nicht verwendet werden (Format oder Größe). Bitte ein anderes Bild wählen.', false],
+  images_unavailable: ['Bilder können in dieser Ansicht nicht mitgeschickt werden.', false],
+  upstream_error: ['Die Verbindung zu Claude ist gestört. Bitte in einem Moment noch einmal versuchen.', false]
+};
+function banner(text, kind) { const b = $('#aiBanner'); if (!text) { b.hidden = true; return; } b.textContent = text; b.className = 'banner' + (kind ? ' ' + kind : ''); b.hidden = false; }
+const ai = {
+  ready: false, sample: null, downloads: null, limits: null, ctl: null, busy: false, photo: null,
+  async init() {
+    if (!(window.claude && typeof window.claude.use === 'function')) { banner('Diese Seite läuft gerade außerhalb der Claude-Ansicht. Die KI-Funktion ist hier nicht verfügbar, die eingebaute Demo-Lektion funktioniert trotzdem.'); return; }
+    let s = null, d = null; try { [s, d] = await Promise.all([claude.use('sample'), claude.use('downloads').catch(() => null)]); } catch (e) { }
+    this.downloads = d;
+    if (!s) { banner('Die KI-Funktion ist in dieser Ansicht nicht verfügbar. Die eingebaute Demo-Lektion läuft trotzdem.'); return; }
+    this.sample = s; this.ready = true; banner('');
+    try { this.limits = await s.limits(); } catch (e) { this.limits = null; }
+    const img = !!(this.limits && this.limits.images); $('#shotLabel').hidden = !img; $('#photoLabel').hidden = !img; if (img && this.limits.images.mediaTypes) $('#photo').accept = this.limits.images.mediaTypes.join(',');
+    $('#startHint').textContent = '';
+  },
+  disable(text) { this.ready = false; banner(text, 'warn'); $('#askForm').hidden = true; $('#chatOut').classList.remove('on'); },
+  fail(e, where) {
+    const code = e && e.code ? e.code : 'upstream_error'; if (code === 'cancelled') return '';
+    const [text, fatal] = AI_ERRORS[code] || AI_ERRORS.upstream_error; if (fatal) this.disable(text); else banner(text, code === 'rate_limited' ? 'warn' : 'bad');
+    console.warn('Claude-Aufruf fehlgeschlagen', where, code, e && e.message); return text;
+  },
+  setBusy(on, label) { this.busy = on; $('#btnStart').disabled = on; $('#btnAsk').disabled = on; $('#btnAbort').hidden = !on; if (on) { setStatus(label || 'Tutor denkt nach…', 'busy'); } },
+  abort() { if (this.ctl) this.ctl.abort(); },
+  async startLesson(topic, mode) {
+    if (!this.ready || this.busy) return; const hasPhoto = mode === 'homework' && !!this.photo;
+    if (!topic && !hasPhoto) { $('#startHint').textContent = mode === 'homework' ? 'Bitte den Aufgabentext eintippen oder ein Foto wählen.' : 'Bitte zuerst ein Thema oder eine Frage eingeben.'; return; }
+    banner(''); this.ctl = new AbortController(); this.setBusy(true, 'Tutor plant die Tafel…'); player.stop(); face.setMood('think'); caption.show('Ich überlege gerade, wie ich das am besten an die Tafel bringe …'); $('#startHint').textContent = '';
+    const opts = { signal: this.ctl.signal, modelTier: 'default', onText: ({ text }) => { const n = (text.match(/"say"/g) || []).length; if (n) setStatus(`Tutor plant die Tafel… Schritt ${n}`, 'busy'); } };
+    if (hasPhoto) opts.images = [this.photo];
+    try {
+      const raw = await this.sample.json(lessonPrompt(topic, mode, hasPhoto), opts);
+      const lesson = normalizeLesson(raw, { topic, mode, level: settings.level, lang: settings.lang, humor: settings.humor });
+      if (!lesson) throw { code: 'invalid_json', message: 'Lektion ohne Schritte' };
+      this.setBusy(false); saveLessonRecord(lesson); startLesson(lesson);
+    } catch (e) { this.setBusy(false); const t = this.fail(e, 'lesson'); setStatus('Bereit'); face.setMood('neutral'); caption.show(t || 'Abgebrochen.'); }
+    finally { this.ctl = null; }
+  },
+  async judge(check, answerText, tk) {
+    if (!this.ready) return null;
+    try {
+      const r = await this.sample.json(`${systemPrompt()}\n\nDer Lernende hat auf eine Verständnisfrage frei geantwortet. Beurteile die Antwort kurz.\nFrage: ${check.question}\nOptionen: ${check.options.join(' | ')}\nRichtig ist Option ${check.answer + 1}: ${check.options[check.answer]}\nBegründung: ${check.explain || ''}\nAntwort des Lernenden: "${answerText}"\n\nAntworte NUR mit JSON: {"correct":true|false,"feedback":"1 bis 2 gesprochene Sätze an den Lernenden; bei einem Fehler: erst sagen, was richtig war, dann den Fehler zeigen, dann den Punkt anders erklären"}`, { modelTier: 'quick', cache: false });
+      if (player.token !== tk) return null; if (r && typeof r.feedback === 'string') { if (r.correct) face.setMood('cheer'); return r.feedback; }
+    } catch (e) { if (e && e.code !== 'cancelled') this.fail(e, 'judge'); }
+    return null;
+  },
+  ask() { }
+};
 
 /* ---------- Start einer Lektion ---------- */
 function startLesson(lesson) { player.load(lesson); hidePop(); setTool('hand'); board.fit(); wrapEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); player.play(); }
@@ -801,7 +943,10 @@ $('#chkStt').addEventListener('change', e => { settings.stt = e.target.checked; 
 $('#btnTestVoice').addEventListener('click', () => { const t = settings.lang === 'de' ? 'Hallo! Ich bin dein Tutor. Hörst du mich gut?' : 'Hello! I am your tutor. Can you hear me well?'; const tk = player.token; face.setMood('cheer'); speech.speak(t, tk).then(() => face.setMood('neutral')); });
 for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { ui.mode = b.dataset.mode; for (const x of document.querySelectorAll('.tabs button')) { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); } $('#hwExtras').hidden = ui.mode !== 'homework'; $('#topic').placeholder = ui.mode === 'homework' ? 'Aufgabentext hier eintippen oder ein Foto wählen' : 'Thema oder Frage, z. B. „Brüche addieren“'; });
 $('#startForm').addEventListener('submit', e => { e.preventDefault(); speech.unlocked = true; const topic = $('#topic').value.trim(); if (ai.ready) { ai.startLesson(topic, ui.mode); } else { $('#startHint').textContent = 'Die KI-Funktion ist hier nicht verfügbar. Es läuft die eingebaute Demo-Lektion.'; startLesson(DEMO); } });
+$('#btnAbort').addEventListener('click', () => ai.abort());
 $('#askForm').addEventListener('submit', e => { e.preventDefault(); const q = $('#askInput').value.trim(); if (!q) return; if (!ai.ready) { $('#chatOut').textContent = 'Nachfragen brauchen die KI-Funktion, die hier nicht verfügbar ist.'; $('#chatOut').classList.add('on'); return; } $('#askInput').value = ''; ai.ask(q, {}); });
+$('#photo').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (!f) return; ai.photo = f; const url = URL.createObjectURL(f); const th = $('#photoThumb'); th.src = url; th.classList.add('on'); $('#photoClear').hidden = false; });
+$('#photoClear').addEventListener('click', () => { ai.photo = null; $('#photo').value = ''; const th = $('#photoThumb'); if (th.src.startsWith('blob:')) URL.revokeObjectURL(th.src); th.removeAttribute('src'); th.classList.remove('on'); $('#photoClear').hidden = true; });
 $('#topic').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#startForm').requestSubmit(); } });
 document.addEventListener('keydown', e => { if (e.target.matches('input,textarea,select') || document.querySelector('dialog[open]')) return; if (e.key === ' ') { e.preventDefault(); $('#btnPlay').click(); } else if (e.key === 'ArrowRight') player.next(); else if (e.key === 'ArrowLeft') player.prev(); });
 
@@ -814,7 +959,7 @@ if (document.fonts && document.fonts.load) { Promise.all([document.fonts.load('3
 document.addEventListener('visibilitychange', () => { if (document.hidden && player.state === 'playing') player.pause(); });
 
 function idleScene() { if (player.program.length) return; board.objects = []; for (const op of [{ op: 'text', id: 'i1', x: 80, y: 60, text: 'Hallo! Ich bin dein Tafel-Tutor.', size: 52 }, { op: 'text', id: 'i2', x: 80, y: 150, text: 'Tipp oben ein Thema ein, dann erkläre ich es Schritt für Schritt – und zeichne dabei hier auf die Tafel.', size: 30, w: 1000 }, { op: 'box', id: 'i3', x: 80, y: 300, w: 300, h: 90, label: 'Dein Thema' }, { op: 'box', id: 'i4', x: 560, y: 300, w: 300, h: 90, label: 'kleine Schritte', color: 'green' }, { op: 'box', id: 'i5', x: 1040, y: 300, w: 300, h: 90, label: 'Quiz am Ende', color: 'purple' }, { op: 'arrow', id: 'i6', from: 'i3', to: 'i4', label: 'erklären' }, { op: 'arrow', id: 'i7', from: 'i4', to: 'i5', label: 'üben' }, { op: 'formula', id: 'i8', x: 80, y: 520, latex: 'a^2 + b^2 = c^2' }, { op: 'formula', id: 'i9', x: 520, y: 520, latex: '\\frac{1}{2} + \\frac{1}{4} = \\frac{3}{4}' }, { op: 'text', id: 'i10', x: 80, y: 700, text: 'Du kannst jederzeit nachfragen, selbst mitzeichnen und Objekte antippen.', size: 28, color: 'grey' }]) applyOp(op, true); board.dirty = true; kick(); }
-theme.refresh(); board.resize(); speech.init(); ui.syncSettings(); ui.playState(); setStatus('Bereit'); idleScene();
+theme.refresh(); board.resize(); speech.init(); ui.syncSettings(); ui.playState(); setStatus('Bereit'); idleScene(); ai.init();
 window.__sbt = { board, player, DEMO, startLesson, settings, ai, Formula };
 })();
 </script>
