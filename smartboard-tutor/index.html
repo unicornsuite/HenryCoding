@@ -84,23 +84,25 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 .board-wrap.pen #ink{cursor:crosshair}
 .board-wrap.eraser #ink{cursor:cell}
 .boardarea{position:relative}
-.face{position:absolute;right:4px;bottom:0;width:132px;height:167px;pointer-events:none;z-index:5;filter:drop-shadow(0 3px 5px rgba(0,0,0,.28));--skin:#f3cfae;--hair:#3b2a1f;--shirt:#2f8f83;--marker:#1f5fd6}
+.face{position:absolute;right:2px;bottom:0;width:190px;height:240px;pointer-events:none;z-index:5;filter:drop-shadow(0 4px 6px rgba(0,0,0,.28));--skin:#f6cfa6;--hair:#6a3fd1;--shirt:#ff7a3d;--shirt-2:#ffd23f;--marker:#e63975;--glasses:#1fa2ff}
 .face svg{width:100%;height:100%;overflow:visible}
 .face .skin{stroke:var(--skin);stroke-width:11;stroke-linecap:round;fill:none}
 .face .skin-f{fill:var(--skin)}
 .face .shirt{fill:var(--shirt)}
-.face .collar{fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.face .collar{fill:none;stroke:#fff6e8;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}
 .face .hair{fill:var(--hair)}
 .face .white{fill:#fff}
 .face .pupil{fill:#2a1a0e;transition:transform .3s}
 .face .lid{fill:var(--skin);transform-box:fill-box;transform-origin:50% 0;transform:scaleY(0);animation:blink 4.6s infinite}
 .face #eyeR .lid{animation-delay:.07s}
-.face .glasses circle,.face .glasses path{fill:none;stroke:#3a3f47;stroke-width:2.2;stroke-linecap:round}
+.face .glasses circle,.face .glasses path{fill:none;stroke:var(--glasses);stroke-width:2.6;stroke-linecap:round}
+.face .stripe{fill:var(--shirt-2)}
+.face .badge{fill:#fff}.face .badge-dot{fill:#1fa2ff}
 .face .brow{stroke:var(--hair);stroke-width:3.2;fill:none;stroke-linecap:round}
 .face .mouth{stroke:#8a3a3a;stroke-width:3.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .face .mouth.fill{fill:#8a3a3a}
-.face .blush{fill:rgba(240,120,110,.35)}
-.face .marker{fill:var(--marker)}.face .marker-cap{fill:#111}
+.face .blush{fill:rgba(255,90,110,.45)}
+.face .marker{fill:var(--marker)}.face .marker-cap{fill:#ffd23f}
 .face .body{animation:bob 3.2s ease-in-out infinite;transform-box:view-box}
 .face #head{transition:transform .35s ease}
 .face #armL,.face #armR{transition:transform .4s ease}
@@ -173,7 +175,7 @@ dialog .db{padding:14px 18px;overflow:auto;max-height:calc(100vh - 140px)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .quizscore{font-size:22px;font-weight:800;margin:6px 0}
 .katex{font-size:1.05em}
-@media (max-width:640px){.tools{position:static;flex-direction:row;flex-wrap:wrap;margin-top:8px}.tools .sep{width:1px;height:auto;margin:4px 2px}.face{width:64px;height:81px;right:4px;top:4px;bottom:auto}}
+@media (max-width:640px){.tools{position:static;flex-direction:row;flex-wrap:wrap;margin-top:8px}.tools .sep{width:1px;height:auto;margin:4px 2px}.face{width:84px;height:106px;right:2px;top:2px;bottom:auto}}
 @media (prefers-reduced-motion: reduce){.face.pop svg,.face .body,.face .lid,.face #armL,.face #armR,.face #head{animation:none}.bar i{transition:none}}
 </style>
 
@@ -243,7 +245,10 @@ dialog .db{padding:14px 18px;overflow:auto;max-height:calc(100vh - 140px)}
       <g class="body">
         <g transform="translate(108 128)"><g id="armR"><path class="skin" d="M0 0 L16 36" /><circle class="skin-f" cx="16" cy="36" r="6.5"/></g></g>
         <path class="shirt" d="M40 190 L44 130 Q75 110 106 130 L110 190 Z"/>
+        <path class="stripe" d="M42 158 L108 158 L109 170 L41 170 Z"/>
+        <path class="stripe" d="M41 182 L109 182 L110 190 L40 190 Z"/>
         <path class="collar" d="M62 124 L75 138 L88 124"/>
+        <rect class="badge" x="86" y="140" width="16" height="9" rx="2"/><circle class="badge-dot" cx="90" cy="144.5" r="2.2"/>
         <g transform="translate(44 130)"><g id="armL"><path class="skin" d="M0 0 L-18 36"/><circle class="skin-f" cx="-18" cy="36" r="6.5"/><g transform="translate(-18 36) rotate(-35)"><rect class="marker" x="-4" y="-22" width="8" height="30" rx="2.5"/><rect class="marker-cap" x="-4" y="-22" width="8" height="8" rx="2.5"/></g></g></g>
         <g transform="translate(75 116)"><g id="head">
           <rect class="skin-f" x="-9" y="-14" width="18" height="18" rx="5"/>
@@ -836,7 +841,7 @@ SPRACHE
 
 TAFEL-LAYOUT
 - Koordinaten: x von 0 bis 1600, y von 0 bis 900, Ursprung oben links. Lesefluss von oben links nach unten rechts: Titel oben links (text, size 48, y 50), neue Inhalte eines Schritts rechts neben oder unterhalb der vorherigen.
-- Keine Überlappungen. Mindestens 30 Einheiten Abstand zwischen Objekten. Platzbedarf: Text braucht etwa 15 Einheiten Breite pro Zeichen (bei size 32) und 40 Höhe pro Zeile; eine Formel etwa 26 pro Zeichen Breite und 120 Höhe mit Bruch (sonst 60); ein Kasten braucht w mindestens 15 mal Zeichenzahl des Labels plus 40 (lange Labels werden umgebrochen, dann h erhöhen) und h mindestens 70. Alles muss innerhalb der Tafel bleiben (x + w <= 1560, y + h <= 860). Die Ecke unten rechts (x > 1360 und y > 660) bleibt frei, dort steht der Tutor.
+- Keine Überlappungen. Mindestens 30 Einheiten Abstand zwischen Objekten. Platzbedarf: Text braucht etwa 15 Einheiten Breite pro Zeichen (bei size 32) und 40 Höhe pro Zeile; eine Formel etwa 26 pro Zeichen Breite und 120 Höhe mit Bruch (sonst 60); ein Kasten braucht w mindestens 15 mal Zeichenzahl des Labels plus 40 (lange Labels werden umgebrochen, dann h erhöhen) und h mindestens 70. Alles muss innerhalb der Tafel bleiben (x + w <= 1560, y + h <= 860). Die Ecke unten rechts (x > 1300 und y > 580) bleibt frei, dort steht der Tutor.
 - 6 bis 12 Schritte, pro Schritt 1 bis 4 Zeichenoperationen. Wenn der Platz knapp wird: {"op":"erase","target":"id"} für Objekte, die nicht mehr gebraucht werden, oder {"op":"clear"} für eine leere Tafel (nur bei einem neuen Abschnitt, höchstens zweimal pro Lektion).
 - Jedes Objekt bekommt eine eindeutige "id" (b1, t2, f3, ...). "arrow" verbindet zwei vorhandene ids über "from" und "to" (keine Koordinaten nötig), optional "label". "highlight" hebt ein vorhandenes Objekt hervor, während davon gesprochen wird. "line" mit "points" [[x,y],[x,y],...] für Skizzen (Achsen, Kurven als Punktfolge, Verbindungen). "circle" mit cx, cy, r und optionalem label.
 - Optional "color" bei box, text, arrow, circle, line: "blue", "green", "purple", "red", "ink" (Standard). Rot nur für Fehler oder Warnungen.
