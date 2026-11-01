@@ -558,7 +558,7 @@ function describeObject(o) { if (o.type === 'text') return `Text „${o.text}“
 function freeSpotNear(o) { const b = o.bbox || { x: 100, y: 100, w: 100, h: 50 }; const cands = [[b.x + b.w + 30, b.y], [b.x, b.y + b.h + 24], [b.x - 420, b.y], [b.x, b.y - 90]]; for (const [x, y] of cands) { if (x < 20 || y < 20 || x > W - 300 || y > H - 60) continue; const r = { x, y, w: 380, h: 70 }; if (!board.objects.some(p => p.alive !== false && p.bbox && p !== o && overlap(p.bbox, r))) return [x, y]; } return [clamp(b.x, 20, W - 400), clamp(b.y + b.h + 24, 20, H - 80)]; }
 function overlap(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
 async function whatIsThis(o) {
-  if (ai.ready) { ai.ask(P('whatIs') + ' ' + describeObject(o), { target: o }); return; }
+  if (ai.ready) { ai.ask(P('whatIs'), { target: o }); return; }
   const [x, y] = freeSpotNear(o); const txt = o.label || o.text || (o.latex ? 'Formel: ' + o.latex : 'Das gehört zur Erklärung oben.');
   const step = { say: txt, mood: 'explain', draw: [{ op: 'text', id: 'w' + Date.now(), x, y, text: txt, size: 26, color: 'purple' }, { op: 'highlight', target: o.id }], synthetic: true };
   player.injectSteps([step]);
@@ -611,14 +611,16 @@ function setStatus(text, kind) { $('#statusText').textContent = text; $('#status
 /* ---------- Abspieler ---------- */
 const player = {
   lesson: null, program: [], i: 0, state: 'idle', token: 0, checkResolve: null, summaryStart: Infinity,
-  load(lesson) { this.stop(); this.lesson = lesson; const steps = (lesson.steps || []).map(s => Object.assign({}, s)); const sum = summarySteps(lesson); this.summaryStart = steps.length; this.program = steps.concat(sum); this.i = 0; this.state = 'idle'; board.clearAll(); ink.clear(); hidePanels(); ui.progress(); caption.show(lesson.title || ''); face.setMood('neutral'); $('#startHint').textContent = ''; },
+  load(lesson) { this.stop(); this.lesson = lesson; const steps = (lesson.steps || []).map(s => Object.assign({}, s)); const sum = summarySteps(lesson); this.summaryStart = steps.length; this.program = steps.concat(sum); this.i = 0; this.insertCursor = null; this.state = 'idle'; board.clearAll(); ink.clear(); hidePanels(); ui.progress(); caption.show(lesson.title || ''); face.setMood('neutral'); $('#startHint').textContent = ''; },
   async play() { if (!this.program.length) return; if (this.state === 'playing') return; if (this.state === 'check') return; if (this.state === 'finished' && this.i >= this.program.length) { this.i = 0; board.clearAll(); } if (this.state === 'paused') rebuildTo(this.i); this.state = 'playing'; ui.playState(); const tk = ++this.token; await this.run(tk); },
   async run(tk) {
     while (this.state === 'playing' && this.token === tk && this.i < this.program.length) {
       const step = this.program[this.i]; setStatus('Tutor erklärt', 'busy'); ui.progress();
       await runStep(step, tk); if (this.token !== tk) return;
       if (step.check) { this.state = 'check'; ui.playState(); const ok = await askCheck(step.check, tk); if (this.token !== tk) return; if (!ok) return; this.state = 'playing'; ui.playState(); }
-      this.i++; ui.progress(); if (this.token !== tk) return; await waitFor(400 / (settings.speed || 1), tk);
+      this.i++; ui.progress(); if (this.token !== tk) return;
+      if (ai.busy && this.insertCursor === this.i) { this.waiting = true; setStatus('Tutor denkt nach…', 'busy'); face.setMood('think'); while (ai.busy && this.insertCursor === this.i && this.token === tk) await sleep(150); this.waiting = false; if (this.token !== tk) return; }
+      await waitFor(400 / (settings.speed || 1), tk);
     }
     if (this.token === tk && this.state === 'playing' && this.i >= this.program.length) { this.state = 'finished'; ui.playState(); setStatus('Lektion beendet'); await runQuiz(tk); }
   },
@@ -626,7 +628,25 @@ const player = {
   stop() { this.token++; speech.cancel(); this.state = this.program.length ? 'paused' : 'idle'; this.i = clamp(this.i, 0, this.program.length); hidePanels(); if (this.program.length) rebuildTo(this.i, true); setStatus('Gestoppt'); ui.playState(); ui.progress(); face.setMood('neutral'); },
   prev() { if (!this.program.length) return; this.token++; speech.cancel(); hidePanels(); this.i = Math.max(0, this.i - 1); this.state = 'paused'; rebuildTo(this.i); ui.progress(); this.play(); },
   next() { if (!this.program.length) return; this.token++; speech.cancel(); hidePanels(); if (this.i < this.program.length) this.i++; this.state = 'paused'; rebuildTo(this.i); ui.progress(); if (this.i < this.program.length) this.play(); else { this.state = 'finished'; ui.playState(); runQuiz(++this.token); } },
-  injectSteps(steps, atEnd) { if (!this.lesson) { this.lesson = { title: '', steps: [], summary: [], quiz: [] }; } const wasPlaying = this.state === 'playing'; const pos = (atEnd || this.i >= this.summaryStart) ? this.program.length : Math.min(Math.max(this.i + (this.state === 'playing' ? 1 : 0), 0), this.summaryStart); this.token++; speech.cancel(); hidePanels(); this.program.splice(pos, 0, ...steps); if (pos <= this.summaryStart) this.summaryStart += steps.length; this.lesson.steps = this.program.slice(0, this.summaryStart); if (pos === this.program.length - steps.length && this.i >= pos) { this.i = pos; } else if (!wasPlaying) { this.i = pos; } else { this.i = pos; } this.state = 'paused'; rebuildTo(this.i); ui.progress(); this.play(); }
+  injectSteps(steps, opts) {
+    opts = opts || {}; if (!steps.length) return;
+    if (!this.lesson) { this.lesson = { title: '', steps: [], summary: [], quiz: [] }; this.program = []; this.summaryStart = 0; this.i = 0; }
+    for (const st of steps) st.followup = true;
+    if (opts.continue && this.insertCursor != null) {
+      // Streaming: weitere Schritte hinter die zuletzt eingefügten hängen, ohne den laufenden Schritt zu unterbrechen
+      let pos = this.insertCursor; if (!this.waiting && (this.state === 'playing' || this.state === 'check')) pos = Math.max(pos, this.i + 1); else pos = Math.max(pos, this.i);
+      pos = Math.min(pos, this.program.length);
+      this.program.splice(pos, 0, ...steps); if (pos <= this.summaryStart) this.summaryStart += steps.length; this.insertCursor = pos + steps.length;
+      this.lesson.steps = this.program.slice(0, this.summaryStart); ui.progress();
+      if (this.state === 'finished' || this.state === 'idle') { this.state = 'paused'; this.play(); }
+      return;
+    }
+    const pos = this.i >= this.summaryStart ? this.program.length : clamp(this.i, 0, this.summaryStart);
+    this.token++; speech.cancel(); hidePanels();
+    this.program.splice(pos, 0, ...steps); if (pos <= this.summaryStart) this.summaryStart += steps.length; this.insertCursor = pos + steps.length;
+    this.lesson.steps = this.program.slice(0, this.summaryStart);
+    this.i = pos; this.state = 'paused'; rebuildTo(this.i); ui.progress(); this.play();
+  }
 };
 function rebuildTo(i, keepPartial) { board.objects = []; for (let k = 0; k < i && k < player.program.length; k++) for (const op of (player.program[k].draw || [])) applyOp(op, true); board.dirty = true; kick(); }
 async function runStep(step, tk) {
@@ -888,7 +908,64 @@ const ai = {
     } catch (e) { if (e && e.code !== 'cancelled') this.fail(e, 'judge'); }
     return null;
   },
-  ask() { }
+  async ask(question, o) {
+    o = o || {}; if (!this.ready || this.busy) return;
+    const wasPlaying = player.state === 'playing'; if (wasPlaying) player.pause(); else if (player.state === 'check') { hidePanels(); player.token++; speech.cancel(); player.state = 'paused'; ui.playState(); }
+    banner(''); this.ctl = new AbortController(); this.setBusy(true, 'Tutor denkt nach…'); face.setMood('think'); caption.show(question);
+    const out = $('#chatOut'); out.textContent = ''; out.classList.remove('on');
+    const opts = { signal: this.ctl.signal, cache: false, modelTier: 'default' };
+    let placeHint = '';
+    if (o.target && o.target.bbox) { const [x, y] = freeSpotNear(o.target); placeHint = `\nDer Lernende hat das Objekt "${o.target.id}" angetippt (${describeObject(o.target)}). Erkläre in 1 bis 2 Schritten, was es ist und wozu es dient. Platziere die Antwort als kurzen Text (op "text", size 26, color "purple", höchstens 40 Zeichen pro Zeile, mehrere Zeilen mit \\n) an der freien Stelle x ${Math.round(x)}, y ${Math.round(y)} und hebe das Objekt mit "highlight" hervor.`; }
+    let shot = null; if (o.screenshot && this.limits && this.limits.images) { try { shot = await renderBoardBlob(1); } catch (e) { shot = null; } if (shot) { opts.images = [shot]; placeHint += '\nIm Bild siehst du die aktuelle Tafel mit den eigenen Markierungen des Lernenden (rote Striche sind vom Lernenden). Gehe darauf ein, falls sie zur Frage gehören.'; } }
+    const prompt = `${systemPrompt({ homework: player.lesson && player.lesson.mode === 'homework' })}
+
+BISHERIGE LEKTION (gesprochene Sätze):
+${lessonSoFar()}
+
+AKTUELLER TAFELZUSTAND (vorhandene Objekte mit ids und Positionen; nichts davon löschen oder neu zeichnen):
+${boardDescription()}
+
+NACHFRAGE DES LERNENDEN:
+"${question}"${placeHint}
+
+Antworte mit 1 bis 4 neuen Schritten im Schrittformat, die an die Lektion angehängt werden. Neue Objekte bekommen neue ids und kommen auf freie Stellen der Tafel (keine Überlappung mit den vorhandenen Objekten); wenn nichts mehr frei ist, zuerst {"op":"clear"}. Keine Zusammenfassung, kein Quiz, keine Wiederholung der Lektion. Das Schrittformat: ${STEP_FORMAT}
+Gib GENAU EIN JSON-Objekt pro Zeile aus (NDJSON), sonst nichts: keine Liste, keine Code-Fences, kein Text davor oder danach.`;
+    let pending = '', added = 0, first = true;
+    const take = line => { line = line.trim(); if (!line) return; let obj = null; try { obj = JSON.parse(line.replace(/^```(json)?|```$/g, '')); } catch (e) { return; } const st = normStep(obj); if (!st) return; added++; player.injectSteps([st], { continue: !first }); first = false; };
+    opts.onText = ({ delta }) => { if (!out.classList.contains('on')) setStatus('Tutor antwortet…', 'busy'); const lines = (pending + delta).split('\n'); pending = lines.pop(); for (const l of lines) take(l); };
+    try {
+      const r = await this.sample(prompt, opts); if (pending.trim()) take(pending); pending = '';
+      if (!added) { // kein gültiger Schritt: Antwort als Text zeigen und sprechen
+        const txt = String(r.text || '').replace(/[{}"\[\]]/g, ' ').trim(); if (txt) { const st = { say: txt.slice(0, 600), mood: 'explain', draw: [] }; player.injectSteps([st]); } }
+      if (player.lesson && !player.lesson.title) player.lesson.title = question.slice(0, 80);
+      if (added && player.lesson) saveLessonRecord(player.lesson);
+      this.setBusy(false); if (player.state !== 'playing' && player.state !== 'check') setStatus('Bereit');
+    } catch (e) {
+      if (pending.trim() && e && e.text) take(pending); this.setBusy(false); const t = this.fail(e, 'ask');
+      if (!added) { setStatus('Bereit'); face.setMood('neutral'); caption.show(t || 'Abgebrochen.'); if (e && e.code === 'cancelled' && wasPlaying) player.play(); }
+    } finally { this.ctl = null; }
+  }
+};
+async function renderBoardBlob(scale) {
+  const c = document.createElement('canvas'); c.width = W * scale; c.height = H * scale; const ctx = c.getContext('2d');
+  const savedDpr = board.dpr; board.dpr = scale; board.render(performance.now() + 100000, ctx, { s: 1, tx: 0, ty: 0 }, true); board.dpr = savedDpr;
+  const tmp = document.createElement('canvas'); tmp.width = c.width; tmp.height = c.height; const tctx = tmp.getContext('2d'); tctx.setTransform(scale, 0, 0, scale, 0, 0); tctx.lineCap = 'round'; tctx.lineJoin = 'round'; for (const st of ink.strokes) ink.drawStroke(tctx, st); tctx.globalCompositeOperation = 'source-over'; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(tmp, 0, 0);
+  return new Promise(r => c.toBlob(r, 'image/png'));
+}
+
+/* ---------- Spracheingabe (nur wenn in den Einstellungen eingeschaltet) ---------- */
+const stt = {
+  rec: null, active: false,
+  supported() { return 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window; },
+  toggle() {
+    if (!settings.stt || !this.supported()) return; if (this.active) { try { this.rec.stop(); } catch (e) { } return; }
+    const R = window.SpeechRecognition || window.webkitSpeechRecognition; const rec = new R(); this.rec = rec; rec.lang = { de: 'de-DE', en: 'en-US', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', tr: 'tr-TR' }[settings.lang] || 'de-DE'; rec.interimResults = true; rec.continuous = false;
+    const input = $('#askInput'); const base = input.value ? input.value + ' ' : '';
+    rec.onresult = e => { let t = ''; for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript; input.value = base + t; };
+    rec.onend = () => { this.active = false; $('#btnMic').classList.remove('on'); setStatus(player.state === 'playing' ? 'Tutor erklärt' : 'Bereit', player.state === 'playing' ? 'busy' : ''); };
+    rec.onerror = e => { this.active = false; $('#btnMic').classList.remove('on'); if (e.error === 'not-allowed' || e.error === 'service-not-allowed') banner('Das Mikrofon wurde nicht freigegeben. Spracheingabe geht nur mit Erlaubnis des Browsers.', 'warn'); };
+    try { rec.start(); this.active = true; $('#btnMic').classList.add('on'); setStatus('Ich höre zu …', 'wait'); if (player.state === 'playing') player.pause(); } catch (e) { this.active = false; }
+  }
 };
 
 /* ---------- Start einer Lektion ---------- */
@@ -911,7 +988,7 @@ const ui = {
     $('#selLang').value = settings.lang; $('#rngRate').value = settings.rate; $('#rateVal').textContent = settings.rate.toFixed(2).replace('.', ',') + '×'; $('#rngPitch').value = settings.pitch; $('#pitchVal').textContent = settings.pitch.toFixed(2).replace('.', ',');
     $('#chkMute').checked = settings.muted; $('#chkStt').checked = settings.stt; $('#speed').value = settings.speed; $('#speedVal').textContent = settings.speed.toFixed(1).replace('.', ',') + '×';
     $('#icoSound').style.display = settings.muted ? 'none' : ''; $('#icoMuted').style.display = settings.muted ? '' : 'none'; $('#btnMute').setAttribute('aria-pressed', String(settings.muted)); $('#btnMute').title = settings.muted ? 'Ton an' : 'Stumm schalten';
-    $('#btnMic').hidden = !settings.stt || !('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
+    $('#btnMic').hidden = !settings.stt || !('webkitSpeechRecognition' in window || 'SpeechRecognition' in window); $('#shotChk').checked = !!settings.shot;
     $('#sttNote').textContent = settings.stt && !('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) ? 'Dieser Browser unterstützt keine Spracheingabe.' : '';
     this.fillVoices();
   }
@@ -944,9 +1021,12 @@ $('#btnTestVoice').addEventListener('click', () => { const t = settings.lang ===
 for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { ui.mode = b.dataset.mode; for (const x of document.querySelectorAll('.tabs button')) { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); } $('#hwExtras').hidden = ui.mode !== 'homework'; $('#topic').placeholder = ui.mode === 'homework' ? 'Aufgabentext hier eintippen oder ein Foto wählen' : 'Thema oder Frage, z. B. „Brüche addieren“'; });
 $('#startForm').addEventListener('submit', e => { e.preventDefault(); speech.unlocked = true; const topic = $('#topic').value.trim(); if (ai.ready) { ai.startLesson(topic, ui.mode); } else { $('#startHint').textContent = 'Die KI-Funktion ist hier nicht verfügbar. Es läuft die eingebaute Demo-Lektion.'; startLesson(DEMO); } });
 $('#btnAbort').addEventListener('click', () => ai.abort());
-$('#askForm').addEventListener('submit', e => { e.preventDefault(); const q = $('#askInput').value.trim(); if (!q) return; if (!ai.ready) { $('#chatOut').textContent = 'Nachfragen brauchen die KI-Funktion, die hier nicht verfügbar ist.'; $('#chatOut').classList.add('on'); return; } $('#askInput').value = ''; ai.ask(q, {}); });
+$('#btnMic').addEventListener('click', () => stt.toggle());
+$('#shotChk').addEventListener('change', e => { settings.shot = e.target.checked; saveSettings(); });
+$('#askForm').addEventListener('submit', e => { e.preventDefault(); const q = $('#askInput').value.trim(); if (!q) return; if (!ai.ready) { $('#chatOut').textContent = 'Nachfragen brauchen die KI-Funktion, die hier nicht verfügbar ist.'; $('#chatOut').classList.add('on'); return; } $('#askInput').value = ''; ai.ask(q, { screenshot: $('#shotChk').checked }); });
 $('#photo').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (!f) return; ai.photo = f; const url = URL.createObjectURL(f); const th = $('#photoThumb'); th.src = url; th.classList.add('on'); $('#photoClear').hidden = false; });
 $('#photoClear').addEventListener('click', () => { ai.photo = null; $('#photo').value = ''; const th = $('#photoThumb'); if (th.src.startsWith('blob:')) URL.revokeObjectURL(th.src); th.removeAttribute('src'); th.classList.remove('on'); $('#photoClear').hidden = true; });
+$('#askInput').addEventListener('focus', () => { if (player.state === 'playing') player.pause(); });
 $('#topic').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#startForm').requestSubmit(); } });
 document.addEventListener('keydown', e => { if (e.target.matches('input,textarea,select') || document.querySelector('dialog[open]')) return; if (e.key === ' ') { e.preventDefault(); $('#btnPlay').click(); } else if (e.key === 'ArrowRight') player.next(); else if (e.key === 'ArrowLeft') player.prev(); });
 
