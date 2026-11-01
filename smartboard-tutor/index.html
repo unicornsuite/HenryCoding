@@ -259,6 +259,7 @@ dialog .db{padding:14px 18px;overflow:auto;max-height:calc(100vh - 140px)}
     <button type="button" class="icon" id="btnMic" hidden title="Spracheingabe" aria-label="Spracheingabe"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg></button>
     <label class="chk" id="shotLabel" hidden><input type="checkbox" id="shotChk">Tafelbild mitschicken</label>
     <button type="submit" id="btnAsk">Fragen</button>
+    <button type="button" id="btnSolution" hidden title="Vollständige Lösung der Hausaufgabe anzeigen">Lösung zeigen</button>
     <button type="button" id="btnAbort" hidden>Stopp</button>
   </form>
   <div class="chatout" id="chatOut" aria-live="polite"></div>
@@ -876,9 +877,9 @@ const ai = {
     this.sample = s; this.ready = true; banner('');
     try { this.limits = await s.limits(); } catch (e) { this.limits = null; }
     const img = !!(this.limits && this.limits.images); $('#shotLabel').hidden = !img; $('#photoLabel').hidden = !img; if (img && this.limits.images.mediaTypes) $('#photo').accept = this.limits.images.mediaTypes.join(',');
-    $('#startHint').textContent = '';
+    $('#startHint').textContent = ''; lessonUI();
   },
-  disable(text) { this.ready = false; banner(text, 'warn'); $('#askForm').hidden = true; $('#chatOut').classList.remove('on'); },
+  disable(text) { this.ready = false; banner(text, 'warn'); $('#askForm').hidden = true; $('#chatOut').classList.remove('on'); lessonUI(); },
   fail(e, where) {
     const code = e && e.code ? e.code : 'upstream_error'; if (code === 'cancelled') return '';
     const [text, fatal] = AI_ERRORS[code] || AI_ERRORS.upstream_error; if (fatal) this.disable(text); else banner(text, code === 'rate_limited' ? 'warn' : 'bad');
@@ -917,7 +918,9 @@ const ai = {
     let placeHint = '';
     if (o.target && o.target.bbox) { const [x, y] = freeSpotNear(o.target); placeHint = `\nDer Lernende hat das Objekt "${o.target.id}" angetippt (${describeObject(o.target)}). Erkläre in 1 bis 2 Schritten, was es ist und wozu es dient. Platziere die Antwort als kurzen Text (op "text", size 26, color "purple", höchstens 40 Zeichen pro Zeile, mehrere Zeilen mit \\n) an der freien Stelle x ${Math.round(x)}, y ${Math.round(y)} und hebe das Objekt mit "highlight" hervor.`; }
     let shot = null; if (o.screenshot && this.limits && this.limits.images) { try { shot = await renderBoardBlob(1); } catch (e) { shot = null; } if (shot) { opts.images = [shot]; placeHint += '\nIm Bild siehst du die aktuelle Tafel mit den eigenen Markierungen des Lernenden (rote Striche sind vom Lernenden). Gehe darauf ein, falls sie zur Frage gehören.'; } }
-    const prompt = `${systemPrompt({ homework: player.lesson && player.lesson.mode === 'homework' })}
+    const isHw = !!(player.lesson && player.lesson.mode === 'homework');
+    const request = o.solution ? `Der Lernende hat sich die Hinweise angesehen und möchte jetzt die vollständige Lösung der Aufgabe sehen. Zeige die Lösung Schritt für Schritt auf der Tafel (3 bis 6 Schritte) mit dem Endergebnis und erkläre jeden Schritt kurz. Ursprüngliche Aufgabe: "${player.lesson.topic || '(siehe Lektion)'}"` : `NACHFRAGE DES LERNENDEN:\n"${question}"`;
+    const prompt = `${systemPrompt({ homework: isHw && !o.solution })}
 
 BISHERIGE LEKTION (gesprochene Sätze):
 ${lessonSoFar()}
@@ -925,18 +928,21 @@ ${lessonSoFar()}
 AKTUELLER TAFELZUSTAND (vorhandene Objekte mit ids und Positionen; nichts davon löschen oder neu zeichnen):
 ${boardDescription()}
 
-NACHFRAGE DES LERNENDEN:
-"${question}"${placeHint}
+${request}${placeHint}
 
-Antworte mit 1 bis 4 neuen Schritten im Schrittformat, die an die Lektion angehängt werden. Neue Objekte bekommen neue ids und kommen auf freie Stellen der Tafel (keine Überlappung mit den vorhandenen Objekten); wenn nichts mehr frei ist, zuerst {"op":"clear"}. Keine Zusammenfassung, kein Quiz, keine Wiederholung der Lektion. Das Schrittformat: ${STEP_FORMAT}
+Antworte mit ${o.solution ? '3 bis 6' : '1 bis 4'} neuen Schritten im Schrittformat, die an die Lektion angehängt werden. Neue Objekte bekommen neue ids und kommen auf freie Stellen der Tafel (keine Überlappung mit den vorhandenen Objekten); wenn nichts mehr frei ist, zuerst {"op":"clear"}. Keine Zusammenfassung, kein Quiz, keine Wiederholung der Lektion. Das Schrittformat: ${STEP_FORMAT}
 Gib GENAU EIN JSON-Objekt pro Zeile aus (NDJSON), sonst nichts: keine Liste, keine Code-Fences, kein Text davor oder danach.`;
     let pending = '', added = 0, first = true;
     const take = line => { line = line.trim(); if (!line) return; let obj = null; try { obj = JSON.parse(line.replace(/^```(json)?|```$/g, '')); } catch (e) { return; } const st = normStep(obj); if (!st) return; added++; player.injectSteps([st], { continue: !first }); first = false; };
     opts.onText = ({ delta }) => { if (!out.classList.contains('on')) setStatus('Tutor antwortet…', 'busy'); const lines = (pending + delta).split('\n'); pending = lines.pop(); for (const l of lines) take(l); };
     try {
       const r = await this.sample(prompt, opts); if (pending.trim()) take(pending); pending = '';
-      if (!added) { // kein gültiger Schritt: Antwort als Text zeigen und sprechen
-        const txt = String(r.text || '').replace(/[{}"\[\]]/g, ' ').trim(); if (txt) { const st = { say: txt.slice(0, 600), mood: 'explain', draw: [] }; player.injectSteps([st]); } }
+      if (!added) { // kein zeilenweiser Schritt: ganze Antwort als JSON oder als gesprochenen Text verwenden
+        const raw = String(r.text || '').trim(); let parsed = null; try { parsed = JSON.parse(raw.replace(/^```(json)?|```$/g, '')); } catch (e) { }
+        const list = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.steps) ? parsed.steps : (parsed ? [parsed] : [])); const steps = list.map(normStep).filter(Boolean);
+        if (steps.length) { player.injectSteps(steps); added = steps.length; }
+        else if (raw && !/^[\[{]/.test(raw)) { player.injectSteps([{ say: raw.replace(/\s+/g, ' ').slice(0, 600), mood: 'explain', draw: [] }]); added = 1; }
+        else banner(AI_ERRORS.invalid_json[0], 'bad'); }
       if (player.lesson && !player.lesson.title) player.lesson.title = question.slice(0, 80);
       if (added && player.lesson) saveLessonRecord(player.lesson);
       this.setBusy(false); if (player.state !== 'playing' && player.state !== 'check') setStatus('Bereit');
@@ -969,7 +975,8 @@ const stt = {
 };
 
 /* ---------- Start einer Lektion ---------- */
-function startLesson(lesson) { player.load(lesson); hidePop(); setTool('hand'); board.fit(); wrapEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); player.play(); }
+function lessonUI() { $('#btnSolution').hidden = !(ai.ready && player.lesson && player.lesson.mode === 'homework'); }
+function startLesson(lesson) { player.load(lesson); hidePop(); setTool('hand'); board.fit(); lessonUI(); wrapEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); player.play(); }
 
 /* ---------- Oberfläche ---------- */
 const ui = {
@@ -1018,10 +1025,11 @@ $('#rngPitch').addEventListener('input', e => { settings.pitch = parseFloat(e.ta
 $('#chkMute').addEventListener('change', e => { settings.muted = e.target.checked; saveSettings(); ui.syncSettings(); });
 $('#chkStt').addEventListener('change', e => { settings.stt = e.target.checked; saveSettings(); ui.syncSettings(); });
 $('#btnTestVoice').addEventListener('click', () => { const t = settings.lang === 'de' ? 'Hallo! Ich bin dein Tutor. Hörst du mich gut?' : 'Hello! I am your tutor. Can you hear me well?'; const tk = player.token; face.setMood('cheer'); speech.speak(t, tk).then(() => face.setMood('neutral')); });
-for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { ui.mode = b.dataset.mode; for (const x of document.querySelectorAll('.tabs button')) { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); } $('#hwExtras').hidden = ui.mode !== 'homework'; $('#topic').placeholder = ui.mode === 'homework' ? 'Aufgabentext hier eintippen oder ein Foto wählen' : 'Thema oder Frage, z. B. „Brüche addieren“'; });
+for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { ui.mode = b.dataset.mode; for (const x of document.querySelectorAll('.tabs button')) { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); } $('#hwExtras').hidden = ui.mode !== 'homework'; $('#hwNote').textContent = (ai.ready && !(ai.limits && ai.limits.images)) ? 'Fotos können in dieser Ansicht nicht mitgeschickt werden; bitte den Aufgabentext eintippen. Der Tutor gibt keine fertige Lösung, sondern führt dich mit Hinweisen hin.' : 'Der Tutor gibt keine fertige Lösung, sondern führt dich mit Hinweisen hin. Mit „Lösung zeigen“ kannst du sie dir später trotzdem anzeigen lassen.'; $('#topic').placeholder = ui.mode === 'homework' ? 'Aufgabentext hier eintippen oder ein Foto wählen' : 'Thema oder Frage, z. B. „Brüche addieren“'; });
 $('#startForm').addEventListener('submit', e => { e.preventDefault(); speech.unlocked = true; const topic = $('#topic').value.trim(); if (ai.ready) { ai.startLesson(topic, ui.mode); } else { $('#startHint').textContent = 'Die KI-Funktion ist hier nicht verfügbar. Es läuft die eingebaute Demo-Lektion.'; startLesson(DEMO); } });
 $('#btnAbort').addEventListener('click', () => ai.abort());
 $('#btnMic').addEventListener('click', () => stt.toggle());
+$('#btnSolution').addEventListener('click', () => { if (player.lesson && player.lesson.mode === 'homework') ai.ask('Bitte zeig mir die Lösung.', { solution: true }); });
 $('#shotChk').addEventListener('change', e => { settings.shot = e.target.checked; saveSettings(); });
 $('#askForm').addEventListener('submit', e => { e.preventDefault(); const q = $('#askInput').value.trim(); if (!q) return; if (!ai.ready) { $('#chatOut').textContent = 'Nachfragen brauchen die KI-Funktion, die hier nicht verfügbar ist.'; $('#chatOut').classList.add('on'); return; } $('#askInput').value = ''; ai.ask(q, { screenshot: $('#shotChk').checked }); });
 $('#photo').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (!f) return; ai.photo = f; const url = URL.createObjectURL(f); const th = $('#photoThumb'); th.src = url; th.classList.add('on'); $('#photoClear').hidden = false; });
