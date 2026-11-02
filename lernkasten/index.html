@@ -97,6 +97,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column}
 .banner.bad{background:var(--bad-bg)}
 .banner.ok{background:var(--ok-bg)}
 .banner button{margin-left:auto}
+.banner button+button{margin-left:0}
 
 /* ---------- Chat ---------- */
 .chatbar{display:flex;gap:8px;align-items:center;flex:none;padding-bottom:4px}
@@ -379,13 +380,15 @@ function startDb() {
 function setState(kind, text) { const el = $('#state'); el.className = 'state ' + kind; $('#stateText').textContent = text; }
 
 /* ---------- Hinweise ---------- */
-function banner(kind, text, key) {
+function banner(kind, text, key, action) {
   removeBanner(key);
   const el = document.createElement('div'); el.className = 'banner ' + kind; el.dataset.key = key || '';
-  el.innerHTML = '<span>' + esc(text) + '</span><button type="button" class="quiet small" aria-label="Hinweis schließen">✕</button>';
-  el.querySelector('button').onclick = () => el.remove();
+  el.innerHTML = '<span>' + esc(text) + '</span>' + (action ? '<button type="button" class="small" data-act>' + esc(action.label) + '</button>' : '') + '<button type="button" class="quiet small" aria-label="Hinweis schließen">✕</button>';
+  el.querySelector('button[aria-label]').onclick = () => el.remove();
+  if (action) el.querySelector('[data-act]').onclick = action.fn;
   $('#banners').append(el);
 }
+const RELOAD = { label: 'Neu laden', fn: () => { try { location.reload(); } catch (e) { toast('Bitte die Seite neu laden.'); } } };
 function removeBanner(key) { if (key) $('#banners').querySelectorAll('[data-key="' + key + '"]').forEach(e => e.remove()); }
 let toastT;
 function toast(text) {
@@ -398,10 +401,10 @@ const AI_ERRORS = {
   not_granted: ['Du hast der Seite nicht erlaubt, Claude zu nutzen. Chat und Kartenerzeugung sind deshalb aus.', true],
   sampling_disabled: ['Claude ist für dieses Konto nicht verfügbar.', true],
   not_declared: ['Diese Version der Seite darf Claude nicht nutzen.', true],
-  capability_disabled: ['Claude ist in dieser Ansicht nicht nutzbar.', true],
-  capability_removed: ['Claude ist in dieser Ansicht nicht nutzbar.', true],
+  capability_disabled: ['Die Verbindung zu Claude ist verloren gegangen. Lade die Seite neu.', 'reload'],
+  capability_removed: ['Die Verbindung zu Claude ist verloren gegangen. Lade die Seite neu.', 'reload'],
   rate_limited: ['Gerade zu viele Anfragen oder dein Kontingent ist für den Moment aufgebraucht. Warte ein paar Minuten.', false],
-  session_expired: ['Deine Anmeldung ist abgelaufen. Lade die Seite neu und melde dich an.', false],
+  session_expired: ['Deine Anmeldung ist abgelaufen. Lade die Seite neu und melde dich an.', 'reload'],
   refused: ['Dazu möchte Claude nichts sagen. Formuliere es bitte anders.', false],
   empty_completion: ['Claude hat nichts geantwortet. Versuch es mit einer anderen Formulierung.', false],
   invalid_json: ['Die Antwort ließ sich nicht als Karten lesen. Versuch es noch einmal.', false],
@@ -412,7 +415,9 @@ function aiFail(e) {
   const code = e && e.code ? e.code : 'upstream_error';
   if (code === 'cancelled') return;
   const [text, fatal] = AI_ERRORS[code] || AI_ERRORS.upstream_error;
-  if (fatal) { S.ai = false; banner('bad', text, 'noai'); render(); } else toast(text);
+  if (fatal === 'reload') banner('warn', text, 'reload', RELOAD);
+  else if (fatal) { S.ai = false; banner('bad', text, 'noai', RELOAD); render(); }
+  else toast(text);
   console.warn('sample', e);
 }
 function rules() {
@@ -434,7 +439,15 @@ function turnsFor(chat, limit) {
   }
   return out;
 }
-let streamCtl = null;
+let streamCtl = null, activeCall = null, lastDelta = 0, callTimer = null;
+function forceIdle(reason) {
+  if (!S.busy) return;
+  const st = S.stream; const chat = st && S.chats.find(c => c.id === st.chatId); const text = (st && st.text || '').trim();
+  try { if (streamCtl) streamCtl.abort(); } catch (e) {}
+  activeCall = null; S.busy = false; S.stream = null; streamCtl = null; clearTimeout(callTimer);
+  if (chat && text) { chat.messages.push({ role: 'assistant', content: text, ts: now() }); chat.updatedAt = now(); wrapWrite(store.putChat(chat), 'Gespräch'); }
+  render(); if (reason) toast(reason);
+}
 async function send(text) {
   text = text.trim(); if (!text || S.busy || !S.ai) return;
   let chat = currentChat();
@@ -448,20 +461,29 @@ async function send(text) {
   wrapWrite(store.putChat(chat), 'Gespräch');
   const input = [{ role: 'user', content: rules() }, ...turnsFor(chat, 30000)];
   streamCtl = new AbortController();
+  const my = {}; activeCall = my; lastDelta = Date.now();
+  clearTimeout(callTimer); callTimer = setTimeout(() => { if (activeCall === my) forceIdle('Die Antwort hat zu lange gedauert und wurde beendet.'); }, 6 * 60000);
   let result = null, partial = '';
   try {
     const r = await sample(input, { cache: false, signal: streamCtl.signal, modelTier: S.deep ? 'complex' : 'default',
-      onText: ({ text }) => { S.stream.text = text; partial = text; paintStream(); } });
+      onText: ({ text }) => { if (activeCall !== my) return; lastDelta = Date.now(); S.stream.text = text; partial = text; paintStream(); } });
     result = r.text; if (r.truncated) toast('Antwort wurde abgeschnitten. Frag nach dem Rest.');
   } catch (e) {
-    if (e && e.code === 'cancelled') result = (e.text || partial).trim() || null; else { aiFail(e); result = (e.text || partial).trim() || null; }
+    if (e && e.code === 'cancelled') result = (e.text || partial).trim() || null; else { if (activeCall === my) aiFail(e); result = (e.text || partial).trim() || null; }
   }
+  if (activeCall !== my) return; // schon per Wächter aufgelöst
+  activeCall = null; clearTimeout(callTimer);
   S.busy = false; S.stream = null; streamCtl = null;
   if (result) { chat.messages.push({ role: 'assistant', content: result, ts: now() }); chat.updatedAt = now(); wrapWrite(store.putChat(chat), 'Gespräch'); }
   render(); scrollBottom(false);
   $('#input').focus();
 }
-function stopStream() { if (streamCtl) streamCtl.abort(); }
+function stopStream() { try { if (streamCtl) streamCtl.abort(); } catch (e) {} setTimeout(() => forceIdle(), 1500); }
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (S.busy) { const seen = lastDelta; setTimeout(() => { if (S.busy && lastDelta === seen) forceIdle('Die Antwort wurde unterbrochen. Du kannst weiterschreiben.'); }, 4000); }
+  if (S.view === 'chat' && !S.busy && S.ai) { const inp = $('#input'); if (inp.disabled) { inp.disabled = false; render(); } }
+});
 
 async function draftCards(text, contextTitle) {
   if (!S.ai) return null;
