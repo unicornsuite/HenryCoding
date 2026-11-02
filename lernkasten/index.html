@@ -5,8 +5,8 @@
 /* Layout: Ein-Bildschirm-App. Oben schmale Kopfzeile mit Name und Status, in der Mitte die jeweilige Ansicht, unten die Leiste mit den drei Reitern (Chat, Karten, Lernen). Glas-Look: weiche Farbflecken im Hintergrund, davor halbdurchsichtige, weichgezeichnete Flächen. Serifenschrift überall. Karteikarten: linierter Grund, roter Kopfstrich. Claudes Antworten stehen ohne Blase frei auf der Seite. */
 :root{
   --bg:#e6ebf2; --fg:#1b2028; --muted:#5a6370; --panel:#ffffff; --line:#d4dbe5; --line-2:#b9c3d0;
-  --glass:rgba(255,255,255,.42); --glass-2:rgba(255,255,255,.26); --glass-3:rgba(255,255,255,.66); --glass-border:rgba(255,255,255,.55); --glass-hi:rgba(255,255,255,.35); --glass-shadow:0 8px 28px rgba(27,32,40,.08);
-  --blob-1:rgba(15,110,102,.16); --blob-2:rgba(222,140,56,.13); --blob-3:rgba(84,118,214,.14);
+  --glass:rgba(255,255,255,.5); --glass-2:rgba(255,255,255,.3); --glass-3:rgba(255,255,255,.7); --glass-border:rgba(255,255,255,.7); --glass-hi:rgba(255,255,255,.35); --glass-shadow:0 8px 28px rgba(27,32,40,.09);
+  --blob-1:rgba(15,110,102,.2); --blob-2:rgba(222,140,56,.17); --blob-3:rgba(84,118,214,.18);
   --accent:#0f6e66; --accent-fg:#ffffff; --soft:#dcefec;
   --due:#b4530a; --due-bg:#fbe9d6; --ok:#1f7a3f; --ok-bg:#dff3e4; --bad:#b42323; --bad-bg:#fae0e0; --warn:#946a12; --warn-bg:#f9efd2;
   --card:#fffdf8; --card-rule:rgba(90,120,170,.28); --card-top:#d6433b; --card-shadow:0 10px 30px rgba(27,32,40,.12);
@@ -19,8 +19,8 @@
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#0f1317; --fg:#e8ebf0; --muted:#9aa4b2; --panel:#1b2027; --line:#2b333d; --line-2:#3a444f;
-  --glass:rgba(32,38,46,.42); --glass-2:rgba(32,38,46,.26); --glass-3:rgba(28,34,42,.70); --glass-border:rgba(255,255,255,.09); --glass-hi:rgba(255,255,255,.05); --glass-shadow:0 8px 28px rgba(0,0,0,.30);
-  --blob-1:rgba(60,207,190,.14); --blob-2:rgba(240,160,90,.11); --blob-3:rgba(120,140,255,.14);
+  --glass:rgba(32,38,46,.5); --glass-2:rgba(32,38,46,.3); --glass-3:rgba(28,34,42,.72); --glass-border:rgba(255,255,255,.11); --glass-hi:rgba(255,255,255,.05); --glass-shadow:0 8px 28px rgba(0,0,0,.30);
+  --blob-1:rgba(60,207,190,.18); --blob-2:rgba(240,160,90,.14); --blob-3:rgba(120,140,255,.18);
   --accent:#3ccfbe; --accent-fg:#062320; --soft:#17403b;
   --due:#f0a05a; --due-bg:#3d2a15; --ok:#6bd48c; --ok-bg:#1a3a26; --bad:#ff8a80; --bad-bg:#44201f; --warn:#e8c467; --warn-bg:#3b3116;
   --card:#232a33; --card-rule:rgba(150,180,220,.22); --card-top:#ef6f67; --card-shadow:0 10px 30px rgba(0,0,0,.45);
@@ -28,8 +28,8 @@
   color-scheme:dark } }
 :root[data-theme="dark"]{
   --bg:#0f1317; --fg:#e8ebf0; --muted:#9aa4b2; --panel:#1b2027; --line:#2b333d; --line-2:#3a444f;
-  --glass:rgba(32,38,46,.42); --glass-2:rgba(32,38,46,.26); --glass-3:rgba(28,34,42,.70); --glass-border:rgba(255,255,255,.09); --glass-hi:rgba(255,255,255,.05); --glass-shadow:0 8px 28px rgba(0,0,0,.30);
-  --blob-1:rgba(60,207,190,.14); --blob-2:rgba(240,160,90,.11); --blob-3:rgba(120,140,255,.14);
+  --glass:rgba(32,38,46,.5); --glass-2:rgba(32,38,46,.3); --glass-3:rgba(28,34,42,.72); --glass-border:rgba(255,255,255,.11); --glass-hi:rgba(255,255,255,.05); --glass-shadow:0 8px 28px rgba(0,0,0,.30);
+  --blob-1:rgba(60,207,190,.18); --blob-2:rgba(240,160,90,.14); --blob-3:rgba(120,140,255,.18);
   --accent:#3ccfbe; --accent-fg:#062320; --soft:#17403b;
   --due:#f0a05a; --due-bg:#3d2a15; --ok:#6bd48c; --ok-bg:#1a3a26; --bad:#ff8a80; --bad-bg:#44201f; --warn:#e8c467; --warn-bg:#3b3116;
   --card:#232a33; --card-rule:rgba(150,180,220,.22); --card-top:#ef6f67; --card-shadow:0 10px 30px rgba(0,0,0,.45);
@@ -46,7 +46,7 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;bac
   radial-gradient(55% 45% at 10% 0%,var(--blob-1),transparent 70%),
   radial-gradient(50% 45% at 95% 100%,var(--blob-2),transparent 70%),
   radial-gradient(40% 40% at 85% 15%,var(--blob-3),transparent 70%)}
-.glass,nav.tabs,.banner,.msg.me .bubble,.kc,form.newcard,.study,.summary div,.sheet,.draft,.composer textarea,input[type=search],input[type=text],textarea,select{
+.glass,nav.tabs,.banner,.msg.me .bubble,.kc,form.newcard,.study,.summary div,.sheet,.draft,.tile,.composer textarea,input[type=search],input[type=text],textarea,select{
   background:var(--glass);border:1px solid var(--glass-border);backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4)}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:1px solid var(--glass-border);background:var(--glass);backdrop-filter:blur(12px) saturate(1.3);-webkit-backdrop-filter:blur(12px) saturate(1.3);border-radius:10px;padding:8px 14px;min-height:42px;display:inline-flex;align-items:center;gap:7px;justify-content:center;font-weight:700;font-size:15px;line-height:1.2}
@@ -122,9 +122,18 @@ main{flex:1;min-height:0;display:flex;flex-direction:column}
 .bubble blockquote{margin:0 0 .6em;padding-left:.8em;border-left:3px solid var(--line-2);color:var(--muted)}
 .msg .tools{display:flex;gap:6px;flex-wrap:wrap}
 .msg .note{font-size:13px;color:var(--muted)}
-.welcome{margin:auto 0;max-width:600px;display:flex;flex-direction:column;gap:12px;padding-block:20px}
-.welcome h2{font-size:28px}
-.welcome p{margin:0;max-width:60ch}
+.home{max-width:640px;display:flex;flex-direction:column;gap:18px;padding-block:12px 16px}
+.home h2{font-size:28px}
+.home section{display:flex;flex-direction:column;gap:8px}
+.tile{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;flex-wrap:wrap}
+.tile .big{font-family:var(--display);font-size:30px;line-height:1;font-weight:700}
+.tile .big.due{color:var(--due)}
+.tile .txt{flex:1;min-width:140px;display:flex;flex-direction:column}
+.tile .txt span{font-size:14px;color:var(--muted)}
+.list{display:flex;flex-direction:column;gap:6px}
+.list button{justify-content:space-between;text-align:left;font-weight:400;padding:10px 14px;border-radius:12px;min-height:48px;gap:10px}
+.list button .t{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.list button .d{font-size:13px;color:var(--muted);white-space:nowrap}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chips button{font-weight:400;border-radius:999px;min-height:38px;padding:6px 14px;text-align:left}
 .chips button.primary{font-weight:700}
@@ -355,7 +364,6 @@ function startLocal() {
   S.storage = 'local';
   S.cards = LS.get('lk_cards', []); S.chats = LS.get('lk_chats', []);
   S.loaded.cards = S.loaded.chats = true;
-  if (!S.chatId && S.chats.length) S.chatId = latestChat().id;
   banner('warn', 'Keine Verbindung zur Datenbank. Alles wird nur in diesem Browser gespeichert.', 'local');
   setState('warn', 'nur lokal');
 }
@@ -373,8 +381,7 @@ function startDb() {
   db.collection('chats').onSnapshot(snap => {
     S.chats = snap.docs.map(d => ({ id: d.id, ...thaw(d.data()) }));
     if (!snap.metadata.fromCache) { S.loaded.chats = true; done(); }
-    if (!S.chatId && S.chats.length) S.chatId = latestChat().id;
-    if (S.chatId && !S.chats.some(c => c.id === S.chatId) && !S.stream) S.chatId = S.chats.length ? latestChat().id : null;
+    if (S.chatId && !S.chats.some(c => c.id === S.chatId) && !S.stream) S.chatId = null;
     render();
   }, onErr);
 }
@@ -620,8 +627,8 @@ const SUGGEST = ['Erklär mir, wie Photosynthese funktioniert', 'Was ist der Unt
 function renderChat() {
   const sel = $('#chatSelect');
   const chats = S.chats.slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-  sel.innerHTML = chats.map(c => '<option value="' + esc(c.id) + '">' + esc(c.title || 'Gespräch') + '</option>').join('') || '<option value="">Noch kein Gespräch</option>';
-  sel.value = S.chatId || ''; sel.disabled = !chats.length; $('#chatbar').hidden = !chats.length;
+  sel.innerHTML = '<option value="">Übersicht</option>' + chats.filter(c => c.messages && c.messages.length).map(c => '<option value="' + esc(c.id) + '">' + esc(c.title || 'Gespräch') + '</option>').join('');
+  sel.value = currentChat() ? S.chatId : ''; $('#chatbar').hidden = !chats.length;
   $('#btnDelChat').disabled = !currentChat() || S.busy;
   $('#btnDeep').classList.toggle('on', S.deep);
   $('#btnDeep').disabled = !S.ai;
@@ -635,13 +642,7 @@ function renderChat() {
   const chat = currentChat();
   if (!chat || !chat.messages.length) {
     if (S.stream) { box.innerHTML = ''; }
-    else {
-      box.innerHTML = '<div class="welcome"><h2>Frag, versteh, merk es dir.</h2>'
-        + '<p class="muted">Aus jeder Antwort von Claude kannst du Karteikarten machen.</p>'
-        + '<div class="chips">' + SUGGEST.slice(0, 3).map(s => '<button type="button" data-suggest="' + esc(s) + '"' + (S.ai ? '' : ' disabled') + '>' + esc(s) + '</button>').join('') + '</div></div>';
-      box.querySelectorAll('[data-suggest]').forEach(b => b.onclick = () => send(b.dataset.suggest));
-      return;
-    }
+    else { renderHome(box); return; }
   }
   const msgs = chat ? chat.messages : [];
   let html = '';
@@ -660,6 +661,30 @@ function renderChat() {
   }
   box.innerHTML = html;
   box.querySelectorAll('[data-cards]').forEach(b => b.onclick = () => cardsFromChat(b.dataset.cards, b));
+}
+function relDay(iso) {
+  if (!iso) return '';
+  const d = Math.floor((Date.now() - new Date(iso)) / DAY);
+  return d <= 0 ? 'heute' : d === 1 ? 'gestern' : 'vor ' + d + ' Tagen';
+}
+function renderHome(box) {
+  const due = dueCards().length, topics = topicList().slice(0, 8);
+  const chats = S.chats.filter(c => c.messages && c.messages.length).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '')).slice(0, 4);
+  const h = new Date().getHours(), gruss = h < 11 ? 'Guten Morgen.' : h < 18 ? 'Hallo.' : 'Guten Abend.';
+  let html = '<div class="home"><h2>' + gruss + ' Was lernen wir heute?</h2>';
+  if (S.cards.length) {
+    html += '<div class="tile"><b class="big num' + (due ? ' due' : '') + '">' + due + '</b><div class="txt"><b>' + (due === 1 ? 'Karte fällig' : 'Karten fällig') + '</b><span class="num">' + S.cards.length + ' im Kasten, ' + topicList().length + (topicList().length === 1 ? ' Thema' : ' Themen') + '</span></div>'
+      + '<button type="button" class="' + (due ? 'primary' : '') + ' small" data-go="lernen">' + (due ? 'Jetzt lernen' : 'Üben') + '</button></div>';
+  } else if (S.loaded.cards) {
+    html += '<div class="tile"><div class="txt"><b>Noch keine Karten</b><span>Stell unten eine Frage. Aus der Antwort machen wir die ersten Karten.</span></div></div>';
+  }
+  if (chats.length) html += '<section><span class="eyebrow">Zuletzt</span><div class="list">' + chats.map(c => '<button type="button" data-chat="' + esc(c.id) + '"><span class="t">' + esc(c.title || 'Gespräch') + '</span><span class="d num">' + relDay(c.updatedAt) + '</span></button>').join('') + '</div></section>';
+  if (topics.length && S.ai) html += '<section><span class="eyebrow">Abfragen lassen</span><div class="chips">' + topics.map(t => '<button type="button" data-suggest="' + esc('Stell mir nacheinander fünf Fragen zum Thema „' + t.name + '“. Warte jeweils auf meine Antwort und sag mir dann, ob sie stimmt.') + '">' + esc(t.name) + ' <span class="muted num">' + t.cards.length + '</span></button>').join('') + '</div></section>';
+  html += '<section><span class="eyebrow">Ideen</span><div class="chips">' + SUGGEST.slice(0, 3).map(s => '<button type="button" data-suggest="' + esc(s) + '"' + (S.ai ? '' : ' disabled') + '>' + esc(s) + '</button>').join('') + '</div></section></div>';
+  box.innerHTML = html;
+  box.querySelectorAll('[data-suggest]').forEach(b => b.onclick = () => send(b.dataset.suggest));
+  box.querySelectorAll('[data-chat]').forEach(b => b.onclick = () => { S.chatId = b.dataset.chat; render(); scrollBottom(true); });
+  box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
 }
 function paintStream() {
   const el = document.querySelector('#streamMsg .bubble');
@@ -890,12 +915,12 @@ addEventListener('hashchange', () => { routeFromHash(); render(); });
 document.querySelector('nav.tabs').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if (b) go(b.dataset.view); });
 
 $('#chatSelect').onchange = e => { S.chatId = e.target.value || null; render(); scrollBottom(true); };
-$('#btnNewChat').onclick = () => { if (S.busy) return; const c = newChatObj(); S.chatId = c.id; render(); $('#input').focus(); };
+$('#btnNewChat').onclick = () => { if (S.busy) return; S.chatId = null; render(); $('#input').focus(); };
 let delChatT;
 $('#btnDelChat').onclick = async () => {
   const chat = currentChat(); if (!chat) return;
   const b = $('#btnDelChat');
-  if (b.dataset.confirm === chat.id) { b.dataset.confirm = ''; b.classList.remove('danger'); const id = chat.id; S.chats = S.chats.filter(c => c.id !== id); S.chatId = S.chats.length ? latestChat().id : null; render(); await wrapWrite(store.delChat(id), 'Gespräch'); toast('Gespräch gelöscht'); render(); }
+  if (b.dataset.confirm === chat.id) { b.dataset.confirm = ''; b.classList.remove('danger'); const id = chat.id; S.chats = S.chats.filter(c => c.id !== id); S.chatId = null; render(); await wrapWrite(store.delChat(id), 'Gespräch'); toast('Gespräch gelöscht'); render(); }
   else { b.dataset.confirm = chat.id; b.classList.add('danger'); toast('Noch einmal tippen, um das Gespräch zu löschen'); clearTimeout(delChatT); delChatT = setTimeout(() => { b.dataset.confirm = ''; b.classList.remove('danger'); }, 3500); }
 };
 $('#btnDeep').onclick = () => { S.deep = !S.deep; render(); };
