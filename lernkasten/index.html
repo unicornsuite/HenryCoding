@@ -5,8 +5,8 @@
 /* Layout: Ein-Bildschirm-App. Oben schmale Kopfzeile mit Name und Status, in der Mitte die jeweilige Ansicht, unten die Leiste mit den drei Reitern (Chat, Karten, Lernen). Glas-Look: weiche Farbflecken im Hintergrund, davor halbdurchsichtige, weichgezeichnete Flächen. Serifenschrift überall. Karteikarten: linierter Grund, roter Kopfstrich. Claudes Antworten stehen ohne Blase frei auf der Seite. */
 :root{
   --bg:#e6ebf2; --fg:#1b2028; --muted:#5a6370; --panel:#ffffff; --line:#d4dbe5; --line-2:#b9c3d0;
-  --glass:rgba(255,255,255,.52); --glass-2:rgba(255,255,255,.32); --glass-3:rgba(255,255,255,.72); --glass-border:rgba(255,255,255,.75); --glass-hi:rgba(255,255,255,.7); --glass-shadow:0 8px 32px rgba(27,32,40,.10);
-  --blob-1:rgba(15,110,102,.22); --blob-2:rgba(222,140,56,.20); --blob-3:rgba(84,118,214,.20);
+  --glass:rgba(255,255,255,.42); --glass-2:rgba(255,255,255,.26); --glass-3:rgba(255,255,255,.66); --glass-border:rgba(255,255,255,.55); --glass-hi:rgba(255,255,255,.35); --glass-shadow:0 8px 28px rgba(27,32,40,.08);
+  --blob-1:rgba(15,110,102,.16); --blob-2:rgba(222,140,56,.13); --blob-3:rgba(84,118,214,.14);
   --accent:#0f6e66; --accent-fg:#ffffff; --soft:#dcefec;
   --due:#b4530a; --due-bg:#fbe9d6; --ok:#1f7a3f; --ok-bg:#dff3e4; --bad:#b42323; --bad-bg:#fae0e0; --warn:#946a12; --warn-bg:#f9efd2;
   --card:#fffdf8; --card-rule:rgba(90,120,170,.28); --card-top:#d6433b; --card-shadow:0 10px 30px rgba(27,32,40,.12);
@@ -19,8 +19,8 @@
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#0f1317; --fg:#e8ebf0; --muted:#9aa4b2; --panel:#1b2027; --line:#2b333d; --line-2:#3a444f;
-  --glass:rgba(32,38,46,.50); --glass-2:rgba(32,38,46,.32); --glass-3:rgba(28,34,42,.74); --glass-border:rgba(255,255,255,.12); --glass-hi:rgba(255,255,255,.08); --glass-shadow:0 8px 32px rgba(0,0,0,.35);
-  --blob-1:rgba(60,207,190,.20); --blob-2:rgba(240,160,90,.16); --blob-3:rgba(120,140,255,.20);
+  --glass:rgba(32,38,46,.42); --glass-2:rgba(32,38,46,.26); --glass-3:rgba(28,34,42,.70); --glass-border:rgba(255,255,255,.09); --glass-hi:rgba(255,255,255,.05); --glass-shadow:0 8px 28px rgba(0,0,0,.30);
+  --blob-1:rgba(60,207,190,.14); --blob-2:rgba(240,160,90,.11); --blob-3:rgba(120,140,255,.14);
   --accent:#3ccfbe; --accent-fg:#062320; --soft:#17403b;
   --due:#f0a05a; --due-bg:#3d2a15; --ok:#6bd48c; --ok-bg:#1a3a26; --bad:#ff8a80; --bad-bg:#44201f; --warn:#e8c467; --warn-bg:#3b3116;
   --card:#232a33; --card-rule:rgba(150,180,220,.22); --card-top:#ef6f67; --card-shadow:0 10px 30px rgba(0,0,0,.45);
@@ -28,8 +28,8 @@
   color-scheme:dark } }
 :root[data-theme="dark"]{
   --bg:#0f1317; --fg:#e8ebf0; --muted:#9aa4b2; --panel:#1b2027; --line:#2b333d; --line-2:#3a444f;
-  --glass:rgba(32,38,46,.50); --glass-2:rgba(32,38,46,.32); --glass-3:rgba(28,34,42,.74); --glass-border:rgba(255,255,255,.12); --glass-hi:rgba(255,255,255,.08); --glass-shadow:0 8px 32px rgba(0,0,0,.35);
-  --blob-1:rgba(60,207,190,.20); --blob-2:rgba(240,160,90,.16); --blob-3:rgba(120,140,255,.20);
+  --glass:rgba(32,38,46,.42); --glass-2:rgba(32,38,46,.26); --glass-3:rgba(28,34,42,.70); --glass-border:rgba(255,255,255,.09); --glass-hi:rgba(255,255,255,.05); --glass-shadow:0 8px 28px rgba(0,0,0,.30);
+  --blob-1:rgba(60,207,190,.14); --blob-2:rgba(240,160,90,.11); --blob-3:rgba(120,140,255,.14);
   --accent:#3ccfbe; --accent-fg:#062320; --soft:#17403b;
   --due:#f0a05a; --due-bg:#3d2a15; --ok:#6bd48c; --ok-bg:#1a3a26; --bad:#ff8a80; --bad-bg:#44201f; --warn:#e8c467; --warn-bg:#3b3116;
   --card:#232a33; --card-rule:rgba(150,180,220,.22); --card-top:#ef6f67; --card-shadow:0 10px 30px rgba(0,0,0,.45);
@@ -43,14 +43,13 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-
   padding-left:var(--gl);padding-right:var(--gr);padding-block:0;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
 body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:
-  radial-gradient(42% 38% at 12% 8%,var(--blob-1),transparent 70%),
-  radial-gradient(38% 34% at 88% 18%,var(--blob-3),transparent 70%),
-  radial-gradient(44% 40% at 70% 92%,var(--blob-2),transparent 70%),
-  radial-gradient(30% 30% at 20% 80%,var(--blob-3),transparent 70%)}
-.glass,nav.tabs,.banner,.msg.me .bubble,.kc,form.newcard,.study,.summary div,.sheet,.draft,.chatbar select,.composer textarea,input[type=search],input[type=text],textarea,select{
-  background:var(--glass);border:1px solid var(--glass-border);backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4);box-shadow:inset 0 1px 0 var(--glass-hi)}
+  radial-gradient(55% 45% at 10% 0%,var(--blob-1),transparent 70%),
+  radial-gradient(50% 45% at 95% 100%,var(--blob-2),transparent 70%),
+  radial-gradient(40% 40% at 85% 15%,var(--blob-3),transparent 70%)}
+.glass,nav.tabs,.banner,.msg.me .bubble,.kc,form.newcard,.study,.summary div,.sheet,.draft,.composer textarea,input[type=search],input[type=text],textarea,select{
+  background:var(--glass);border:1px solid var(--glass-border);backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4)}
 button,input,select,textarea{font:inherit;color:inherit}
-button{cursor:pointer;border:1px solid var(--glass-border);background:var(--glass);backdrop-filter:blur(12px) saturate(1.3);-webkit-backdrop-filter:blur(12px) saturate(1.3);box-shadow:inset 0 1px 0 var(--glass-hi);border-radius:10px;padding:8px 14px;min-height:42px;display:inline-flex;align-items:center;gap:7px;justify-content:center;font-weight:700;font-size:15px;line-height:1.2}
+button{cursor:pointer;border:1px solid var(--glass-border);background:var(--glass);backdrop-filter:blur(12px) saturate(1.3);-webkit-backdrop-filter:blur(12px) saturate(1.3);border-radius:10px;padding:8px 14px;min-height:42px;display:inline-flex;align-items:center;gap:7px;justify-content:center;font-weight:700;font-size:15px;line-height:1.2}
 button:active:not(:disabled){background:var(--soft)}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.12)}
@@ -71,21 +70,25 @@ h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
 .num{font-variant-numeric:tabular-nums}
 
 .app{height:100%;display:flex;flex-direction:column;min-height:0}
-header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:12px 10px;flex:none;flex-wrap:wrap}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-block:10px 6px;flex:none}
+.headtools{display:flex;gap:2px;align-items:center}
+.headtools button.icon{width:38px;padding:0}
+.headtools button.on{color:var(--accent);background:var(--soft)}
 .brand{display:flex;align-items:baseline;gap:10px;min-width:0}
-.brand h1{font-size:28px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
+.brand h1{font-size:24px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
 .brand .state{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.brand .state.ok span:last-child{display:none}
 .brand .state .dot{width:8px;height:8px;border-radius:50%;background:var(--line-2);flex:none}
 .brand .state.ok .dot{background:var(--ok)}
 .brand .state.warn .dot{background:var(--warn)}
 .brand .state.busy .dot{background:var(--accent);animation:pulse 1s infinite}
 @keyframes pulse{50%{opacity:.3}}
-nav.tabs{flex:none;display:flex;gap:4px;border-radius:14px;padding:5px;margin-block:8px 10px;align-self:center;width:min(100%,520px);box-shadow:inset 0 1px 0 var(--glass-hi),var(--glass-shadow)}
-nav.tabs button{flex:1;min-height:44px;border:0;background:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;font-weight:700;padding:6px 14px;border-radius:10px;color:var(--muted);position:relative}
+nav.tabs{flex:none;display:flex;gap:2px;border-radius:999px;padding:3px;margin-block:6px 8px;align-self:center;width:min(100%,420px);box-shadow:var(--glass-shadow)}
+nav.tabs button{flex:1;min-height:40px;border:0;background:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;font-weight:600;padding:6px 12px;border-radius:999px;color:var(--muted);position:relative}
 nav.tabs button.active{background:var(--accent);color:var(--accent-fg)}
 nav.tabs .badge{font-size:12px;background:var(--due);color:#fff;border-radius:999px;padding:1px 7px;min-width:20px;line-height:1.4}
 nav.tabs button.active .badge{background:var(--accent-fg);color:var(--accent)}
-@media (max-width:520px){ header.top{padding-block:10px 8px} .brand h1{font-size:22px} nav.tabs button{padding:6px 8px} }
+@media (max-width:520px){ .brand h1{font-size:22px} nav.tabs button{padding:6px 8px} }
 
 main{flex:1;min-height:0;display:flex;flex-direction:column}
 .view{flex:1;min-height:0;display:flex;flex-direction:column}
@@ -96,8 +99,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column}
 .banner button{margin-left:auto}
 
 /* ---------- Chat ---------- */
-.chatbar{display:flex;gap:8px;align-items:center;flex:none;padding-bottom:8px}
-.chatbar select{flex:1;min-width:0}
+.chatbar{display:flex;gap:8px;align-items:center;flex:none;padding-bottom:4px}
+.chatbar select{flex:1;min-width:0;background:transparent;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;color:var(--muted);font-size:15px;padding:4px 0;width:auto;max-width:100%}
 .messages{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-block:6px 12px;scroll-behavior:smooth}
 @media (prefers-reduced-motion:reduce){.messages{scroll-behavior:auto}}
 .msg{max-width:min(720px,100%);display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -118,28 +121,27 @@ main{flex:1;min-height:0;display:flex;flex-direction:column}
 .bubble blockquote{margin:0 0 .6em;padding-left:.8em;border-left:3px solid var(--line-2);color:var(--muted)}
 .msg .tools{display:flex;gap:6px;flex-wrap:wrap}
 .msg .note{font-size:13px;color:var(--muted)}
-.welcome{margin:auto 0;max-width:600px;display:flex;flex-direction:column;gap:14px;padding-block:20px}
-.welcome h2{font-size:30px}
+.welcome{margin:auto 0;max-width:600px;display:flex;flex-direction:column;gap:12px;padding-block:20px}
+.welcome h2{font-size:28px}
 .welcome p{margin:0;max-width:60ch}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chips button{font-weight:400;border-radius:999px;min-height:38px;padding:6px 14px;text-align:left}
 .chips button.primary{font-weight:700}
-.composer{flex:none;display:flex;gap:8px;align-items:flex-end;padding-block:8px 4px;border-top:1px solid var(--glass-border)}
+.composer{flex:none;display:flex;gap:8px;align-items:flex-end;padding-block:8px 2px}
 .composer textarea{flex:1;max-height:160px;min-height:44px;border-radius:14px;padding:10px 14px;resize:none;line-height:1.4}
-.composer .opts{display:flex;gap:6px;flex-direction:column}
-.composer button.icon{width:44px;padding:0;border-radius:12px}
+.composer button.icon{width:44px;padding:0;border-radius:14px}
 
 /* ---------- Karten ---------- */
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-bottom:10px;flex:none}
+.toolbar input[type=search]{background:var(--glass-2)}
 .toolbar input[type=search]{flex:1;min-width:160px}
-.stats{display:flex;gap:16px;flex-wrap:wrap;padding-bottom:12px;flex:none}
-.stat{display:flex;flex-direction:column}
-.stat b{font-family:var(--display);font-size:24px;line-height:1.1}
-.stat span{font-size:13px;color:var(--muted)}
-.stat.due b{color:var(--due)}
+.stats{font-size:14px;color:var(--muted);padding-bottom:8px;flex:none}
+.stats b{color:var(--fg);font-weight:600}
+.stats .due{color:var(--due);font-weight:600}
 .scroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:16px}
 .topic{margin-bottom:18px}
 .topic h3{font-size:18px;margin-bottom:8px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.topic h3 button{margin-left:auto;font-size:14px}
 .topic h3 small{font-size:13px;color:var(--muted);font-family:var(--body);font-weight:400}
 .cardgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
 .kc{border-radius:10px;padding:12px 14px 10px;display:flex;flex-direction:column;gap:6px;position:relative;min-width:0;overflow:hidden;
@@ -152,8 +154,10 @@ main{flex:1;min-height:0;display:flex;flex-direction:column}
 .kc .meta button{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
 .kc .meta .pill.due{background:var(--due-bg);color:var(--due)}
 .kc .meta .pill.new{background:var(--warn-bg);color:var(--warn)}
-.kc .meta .actions{margin-left:auto;display:flex;gap:4px}
-.kc .meta button{min-height:28px;padding:2px 8px;font-size:12px}
+.kc .meta .actions{margin-left:auto;display:none;gap:4px}
+.kc.open .meta .actions{display:flex}
+.kc:not(.editing){cursor:pointer}
+.kc .meta button{min-height:28px;padding:2px 8px;font-size:13px}
 .kc.editing{background-image:none}
 .kc textarea{font-size:15px;min-height:40px}
 .kc .editrow{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
@@ -226,23 +230,21 @@ form.newcard input{grid-column:1/-1}
       <h1>Lernkasten</h1>
       <div class="state" id="state"><span class="dot"></span><span id="stateText">Verbinde …</span></div>
     </div>
+    <div class="headtools" id="chatTools">
+      <button type="button" id="btnDeep" class="small quiet" title="Gründlicher antworten (dauert länger)">Gründlich</button>
+      <button type="button" id="btnNewChat" class="small quiet icon" title="Neues Gespräch" aria-label="Neues Gespräch"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button type="button" id="btnDelChat" class="small quiet icon" title="Gespräch löschen" aria-label="Gespräch löschen"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+    </div>
   </header>
   <div id="banners"></div>
   <main>
     <!-- Chat -->
     <section class="view" id="view-chat">
-      <div class="chatbar">
-        <select id="chatSelect" aria-label="Gespräch wählen"></select>
-        <button type="button" id="btnNewChat" title="Neues Gespräch"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Neu</button>
-        <button type="button" id="btnDelChat" class="quiet" title="Gespräch löschen"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
-      </div>
+      <div class="chatbar" id="chatbar"><select id="chatSelect" aria-label="Gespräch wählen"></select></div>
       <div class="messages" id="messages"></div>
       <form class="composer" id="composer">
         <textarea id="input" rows="1" placeholder="Was möchtest du lernen oder verstehen?" aria-label="Nachricht"></textarea>
-        <div class="opts">
-          <button type="button" id="btnDeep" class="small" title="Gründlicher antworten (dauert länger)">Gründlich</button>
-          <button type="submit" id="btnSend" class="primary icon" title="Senden" aria-label="Senden"><svg class="i" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
-        </div>
+        <button type="submit" id="btnSend" class="primary icon" title="Senden" aria-label="Senden"><svg class="i" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
       </form>
     </section>
 
@@ -286,7 +288,7 @@ const S = {
   deep: false, busy: false, stream: null, // stream = {chatId, text}
   storage: 'none', // 'db' | 'local' | 'none'
   loaded: { cards: false, chats: false },
-  search: '', editing: null, adding: false, confirmDel: null,
+  search: '', editing: null, adding: false, confirmDel: null, openCard: null,
   session: null, ai: true,
 };
 let sample = null, db = null;
@@ -576,6 +578,7 @@ function render() {
 function renderTabs() {
   document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.view === S.view));
   document.querySelectorAll('.view').forEach(v => v.hidden = v.id !== 'view-' + S.view);
+  $('#chatTools').hidden = S.view !== 'chat';
   const due = dueCards().length;
   $('#badgeCards').hidden = !S.cards.length; $('#badgeCards').textContent = S.cards.length;
   $('#badgeDue').hidden = !due; $('#badgeDue').textContent = due;
@@ -587,7 +590,7 @@ function renderChat() {
   const sel = $('#chatSelect');
   const chats = S.chats.slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
   sel.innerHTML = chats.map(c => '<option value="' + esc(c.id) + '">' + esc(c.title || 'Gespräch') + '</option>').join('') || '<option value="">Noch kein Gespräch</option>';
-  sel.value = S.chatId || ''; sel.disabled = !chats.length;
+  sel.value = S.chatId || ''; sel.disabled = !chats.length; $('#chatbar').hidden = !chats.length;
   $('#btnDelChat').disabled = !currentChat() || S.busy;
   $('#btnDeep').classList.toggle('on', S.deep);
   $('#btnDeep').disabled = !S.ai;
@@ -602,10 +605,9 @@ function renderChat() {
   if (!chat || !chat.messages.length) {
     if (S.stream) { box.innerHTML = ''; }
     else {
-      box.innerHTML = '<div class="welcome"><span class="eyebrow">Dein Lernkasten</span><h2>Frag, versteh, merk es dir.</h2>'
-        + '<p>Schreib mit Claude über das, was du gerade lernst. Aus jeder Antwort kannst du Karteikarten machen, und unter „Lernen“ fragt dich der Kasten dann im richtigen Abstand wieder ab.</p>'
-        + (S.loaded.chats && !S.cards.length ? '<p class="muted">Noch keine Karten. Die erste Erklärung ist der beste Anfang.</p>' : '')
-        + '<div class="chips">' + SUGGEST.map(s => '<button type="button" data-suggest="' + esc(s) + '"' + (S.ai ? '' : ' disabled') + '>' + esc(s) + '</button>').join('') + '</div></div>';
+      box.innerHTML = '<div class="welcome"><h2>Frag, versteh, merk es dir.</h2>'
+        + '<p class="muted">Aus jeder Antwort von Claude kannst du Karteikarten machen.</p>'
+        + '<div class="chips">' + SUGGEST.slice(0, 3).map(s => '<button type="button" data-suggest="' + esc(s) + '"' + (S.ai ? '' : ' disabled') + '>' + esc(s) + '</button>').join('') + '</div></div>';
       box.querySelectorAll('[data-suggest]').forEach(b => b.onclick = () => send(b.dataset.suggest));
       return;
     }
@@ -687,10 +689,7 @@ function openSheet(drafts, sourceId) {
 /* Karten */
 function renderCards() {
   const due = dueCards().length, learned = S.cards.filter(c => c.interval >= 21).length, fresh = S.cards.filter(c => !c.lastReview).length;
-  $('#stats').innerHTML = '<div class="stat"><b class="num">' + S.cards.length + '</b><span>Karten</span></div>'
-    + '<div class="stat due"><b class="num">' + due + '</b><span>fällig</span></div>'
-    + '<div class="stat"><b class="num">' + fresh + '</b><span>neu</span></div>'
-    + '<div class="stat"><b class="num">' + learned + '</b><span>sitzen (ab 3 Wochen)</span></div>';
+  $('#stats').innerHTML = S.cards.length ? '<span class="num"><b>' + S.cards.length + '</b> Karten · <span class="due">' + due + ' fällig</span> · ' + fresh + ' neu · ' + learned + ' sitzen</span>' : '';
   const list = $('#cardsList');
   let html = '';
   if (S.adding) {
@@ -725,7 +724,7 @@ function renderCards() {
         }
         const d = fmtDue(c);
         const delLabel = S.confirmDel === c.id ? 'Wirklich löschen?' : 'Löschen';
-        html += '<div class="kc"><div class="front">' + esc(c.front) + '</div><div class="back">' + esc(c.back) + '</div>'
+        html += '<div class="kc' + (S.openCard === c.id ? ' open' : '') + '" data-open="' + esc(c.id) + '"><div class="front">' + esc(c.front) + '</div><div class="back">' + esc(c.back) + '</div>'
           + '<div class="meta"><span class="pill ' + d.cls + '">' + d.text + '</span>' + (c.reps ? '<span class="num">' + c.reps + '× gewusst</span>' : '')
           + '<span class="actions"><button type="button" class="quiet" data-edit="' + esc(c.id) + '">Bearbeiten</button><button type="button" class="quiet' + (S.confirmDel === c.id ? ' danger' : '') + '" data-del="' + esc(c.id) + '">' + delLabel + '</button></span></div></div>';
       }
@@ -739,6 +738,7 @@ function renderCards() {
     $('#ncCancel').onclick = () => { S.adding = false; render(); };
     $('#ncFront').focus();
   }
+  list.querySelectorAll('[data-open]').forEach(k => k.onclick = e => { if (e.target.closest('button')) return; S.openCard = S.openCard === k.dataset.open ? null : k.dataset.open; S.confirmDel = null; render(); });
   list.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { S.editing = b.dataset.edit; S.confirmDel = null; render(); });
   list.querySelectorAll('[data-edit-cancel]').forEach(b => b.onclick = () => { S.editing = null; render(); });
   list.querySelectorAll('[data-edit-save]').forEach(b => b.onclick = async () => {
@@ -853,10 +853,10 @@ function nextIn(card, q) { const c = schedule(card, q); return c.interval === 1 
 
 /* ---------- Navigation und Eingaben ---------- */
 const VIEWS = ['chat', 'karten', 'lernen'];
-function go(v) { if (!VIEWS.includes(v)) v = 'chat'; S.view = v; if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v); render(); if (v === 'chat') scrollBottom(true); }
+function go(v) { if (!VIEWS.includes(v)) v = 'chat'; S.view = v; render(); if (v === 'chat') scrollBottom(true); try { if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v); } catch (e) { console.warn('hash', e); } }
 function routeFromHash() { const h = location.hash.replace('#', ''); S.view = VIEWS.includes(h) ? h : 'chat'; }
 addEventListener('hashchange', () => { routeFromHash(); render(); });
-document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => go(b.dataset.view));
+document.querySelector('nav.tabs').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if (b) go(b.dataset.view); });
 
 $('#chatSelect').onchange = e => { S.chatId = e.target.value || null; render(); scrollBottom(true); };
 $('#btnNewChat').onclick = () => { if (S.busy) return; const c = newChatObj(); S.chatId = c.id; render(); $('#input').focus(); };
