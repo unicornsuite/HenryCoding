@@ -282,6 +282,7 @@ const now = () => new Date().toISOString();
 const DAY = 86400000;
 const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const isCoarse = matchMedia('(pointer:coarse)').matches;
+const thaw = o => { try { return structuredClone(o); } catch (e) { return JSON.parse(JSON.stringify(o)); } };
 
 /* ---------- Zustand ---------- */
 const S = {
@@ -365,12 +366,12 @@ function startDb() {
   const done = () => { if (S.loaded.cards && S.loaded.chats) { clearTimeout(timer); removeBanner('slow'); setState('ok', 'gespeichert'); } };
   const onErr = e => { console.warn('db', e); clearTimeout(timer); if (e && e.code === 'revoked') { setState('warn', 'Verbindung getrennt'); } else if (S.storage === 'db' && !S.loaded.cards && !S.loaded.chats) { startLocal(); } };
   db.collection('cards').onSnapshot(snap => {
-    S.cards = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    S.cards = snap.docs.map(d => ({ id: d.id, ...thaw(d.data()) }));
     if (!snap.metadata.fromCache) { S.loaded.cards = true; done(); }
     render();
   }, onErr);
   db.collection('chats').onSnapshot(snap => {
-    S.chats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    S.chats = snap.docs.map(d => ({ id: d.id, ...thaw(d.data()) }));
     if (!snap.metadata.fromCache) { S.loaded.chats = true; done(); }
     if (!S.chatId && S.chats.length) S.chatId = latestChat().id;
     if (S.chatId && !S.chats.some(c => c.id === S.chatId) && !S.stream) S.chatId = S.chats.length ? latestChat().id : null;
@@ -417,7 +418,7 @@ function aiFail(e) {
   const [text, fatal] = AI_ERRORS[code] || AI_ERRORS.upstream_error;
   if (fatal === 'reload') banner('warn', text, 'reload', RELOAD);
   else if (fatal) { S.ai = false; banner('bad', text, 'noai', RELOAD); render(); }
-  else toast(text);
+  else toast(text + ' (' + code + ')');
   console.warn('sample', e);
 }
 function rules() {
@@ -445,14 +446,20 @@ function forceIdle(reason) {
   const st = S.stream; const chat = st && S.chats.find(c => c.id === st.chatId); const text = (st && st.text || '').trim();
   try { if (streamCtl) streamCtl.abort(); } catch (e) {}
   activeCall = null; S.busy = false; S.stream = null; streamCtl = null; clearTimeout(callTimer);
-  if (chat && text) { chat.messages.push({ role: 'assistant', content: text, ts: now() }); chat.updatedAt = now(); wrapWrite(store.putChat(chat), 'Gespräch'); }
+  if (chat && text) { const copy = thaw(chat); copy.messages.push({ role: 'assistant', content: text, ts: now() }); copy.updatedAt = now(); S.chats = S.chats.map(c => c.id === copy.id ? copy : c); wrapWrite(store.putChat(copy), 'Gespräch'); }
   render(); if (reason) toast(reason);
 }
 async function send(text) {
+  try { await sendInner(text); }
+  catch (e) { console.error('send', e); activeCall = null; S.busy = false; S.stream = null; streamCtl = null; clearTimeout(callTimer); render(); banner('bad', 'Senden fehlgeschlagen: ' + (e && e.message ? e.message : String(e)), 'senderr', RELOAD); }
+}
+async function sendInner(text) {
   text = text.trim(); if (!text || S.busy || !S.ai) return;
   let chat = currentChat();
   if (!chat) { chat = newChatObj(); S.chatId = chat.id; }
+  else { chat = thaw(chat); S.chats = S.chats.map(c => c.id === chat.id ? chat : c); }
   if (chat.messages.length === 0) chat.title = text.slice(0, 48).replace(/\s+/g, ' ');
+  removeBanner('senderr');
   chat.messages.push({ role: 'user', content: text, ts: now() });
   chat.updatedAt = now();
   S.busy = true; S.stream = { chatId: chat.id, text: '' };
@@ -474,14 +481,16 @@ async function send(text) {
   if (activeCall !== my) return; // schon per Wächter aufgelöst
   activeCall = null; clearTimeout(callTimer);
   S.busy = false; S.stream = null; streamCtl = null;
-  if (result) { chat.messages.push({ role: 'assistant', content: result, ts: now() }); chat.updatedAt = now(); wrapWrite(store.putChat(chat), 'Gespräch'); }
+  if (result) { chat.messages.push({ role: 'assistant', content: result, ts: now() }); chat.updatedAt = now(); S.chats = S.chats.map(c => c.id === chat.id ? chat : c); wrapWrite(store.putChat(chat), 'Gespräch'); }
   render(); scrollBottom(false);
   $('#input').focus();
 }
 function stopStream() { try { if (streamCtl) streamCtl.abort(); } catch (e) {} setTimeout(() => forceIdle(), 1500); }
+let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible') return;
-  if (S.busy) { const seen = lastDelta; setTimeout(() => { if (S.busy && lastDelta === seen) forceIdle('Die Antwort wurde unterbrochen. Du kannst weiterschreiben.'); }, 4000); }
+  if (document.visibilityState !== 'visible') { hiddenAt = Date.now(); return; }
+  const away = hiddenAt ? Date.now() - hiddenAt : 0; hiddenAt = 0;
+  if (S.busy) { const seen = lastDelta; setTimeout(() => { if (S.busy && lastDelta === seen) forceIdle('Die Antwort wurde unterbrochen. Du kannst weiterschreiben.'); }, away > 120000 ? 4000 : 90000); }
   if (S.view === 'chat' && !S.busy && S.ai) { const inp = $('#input'); if (inp.disabled) { inp.disabled = false; render(); } }
 });
 
@@ -516,7 +525,7 @@ async function checkAnswer(card, answer) {
 /* ---------- Gespräche ---------- */
 function latestChat() { return S.chats.slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))[0]; }
 function currentChat() { return S.chats.find(c => c.id === S.chatId) || null; }
-function newChatObj() { const c = { id: uid('g_'), title: 'Neues Gespräch', createdAt: now(), updatedAt: now(), messages: [] }; S.chats.push(c); return c; }
+function newChatObj() { const c = { id: uid('g_'), title: 'Neues Gespräch', createdAt: now(), updatedAt: now(), messages: [] }; S.chats = S.chats.concat([c]); return c; }
 
 /* ---------- Karten und Wiederholung (SM-2) ---------- */
 function newCard(front, back, topic, source) {
