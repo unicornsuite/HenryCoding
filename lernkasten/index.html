@@ -1,0 +1,882 @@
+<title>Lernkasten</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap">
+<style>
+/* Layout: Ein-Bildschirm-App. Kopfzeile mit Name und drei Reitern (Chat, Karten, Lernen), darunter die jeweilige Ansicht. Glas-Look: weiche Farbflecken im Hintergrund, davor halbdurchsichtige, weichgezeichnete Flächen. Serifenschrift überall. Karteikarten: linierter Grund, roter Kopfstrich. Claudes Antworten stehen ohne Blase frei auf der Seite. */
+:root{
+  --bg:#e6ebf2; --fg:#1b2028; --muted:#5a6370; --panel:#ffffff; --line:#d4dbe5; --line-2:#b9c3d0;
+  --glass:rgba(255,255,255,.52); --glass-2:rgba(255,255,255,.32); --glass-3:rgba(255,255,255,.72); --glass-border:rgba(255,255,255,.75); --glass-hi:rgba(255,255,255,.7); --glass-shadow:0 8px 32px rgba(27,32,40,.10);
+  --blob-1:rgba(15,110,102,.22); --blob-2:rgba(222,140,56,.20); --blob-3:rgba(84,118,214,.20);
+  --accent:#0f6e66; --accent-fg:#ffffff; --soft:#dcefec;
+  --due:#b4530a; --due-bg:#fbe9d6; --ok:#1f7a3f; --ok-bg:#dff3e4; --bad:#b42323; --bad-bg:#fae0e0; --warn:#946a12; --warn-bg:#f9efd2;
+  --card:#fffdf8; --card-rule:rgba(90,120,170,.28); --card-top:#d6433b; --card-shadow:0 10px 30px rgba(27,32,40,.12);
+  --bubble-me:#e3ebf5; --bubble-ai:#ffffff;
+  --display:"Source Serif 4","Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --body:"Source Serif 4","Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --radius:12px;
+  --gl:max(16px,env(safe-area-inset-left,0px)); --gr:max(16px,env(safe-area-inset-right,0px));
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f1317; --fg:#e8ebf0; --muted:#9aa4b2; --panel:#1b2027; --line:#2b333d; --line-2:#3a444f;
+  --glass:rgba(32,38,46,.50); --glass-2:rgba(32,38,46,.32); --glass-3:rgba(28,34,42,.74); --glass-border:rgba(255,255,255,.12); --glass-hi:rgba(255,255,255,.08); --glass-shadow:0 8px 32px rgba(0,0,0,.35);
+  --blob-1:rgba(60,207,190,.20); --blob-2:rgba(240,160,90,.16); --blob-3:rgba(120,140,255,.20);
+  --accent:#3ccfbe; --accent-fg:#062320; --soft:#17403b;
+  --due:#f0a05a; --due-bg:#3d2a15; --ok:#6bd48c; --ok-bg:#1a3a26; --bad:#ff8a80; --bad-bg:#44201f; --warn:#e8c467; --warn-bg:#3b3116;
+  --card:#232a33; --card-rule:rgba(150,180,220,.22); --card-top:#ef6f67; --card-shadow:0 10px 30px rgba(0,0,0,.45);
+  --bubble-me:#263140; --bubble-ai:#1b2027;
+  color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0f1317; --fg:#e8ebf0; --muted:#9aa4b2; --panel:#1b2027; --line:#2b333d; --line-2:#3a444f;
+  --glass:rgba(32,38,46,.50); --glass-2:rgba(32,38,46,.32); --glass-3:rgba(28,34,42,.74); --glass-border:rgba(255,255,255,.12); --glass-hi:rgba(255,255,255,.08); --glass-shadow:0 8px 32px rgba(0,0,0,.35);
+  --blob-1:rgba(60,207,190,.20); --blob-2:rgba(240,160,90,.16); --blob-3:rgba(120,140,255,.20);
+  --accent:#3ccfbe; --accent-fg:#062320; --soft:#17403b;
+  --due:#f0a05a; --due-bg:#3d2a15; --ok:#6bd48c; --ok-bg:#1a3a26; --bad:#ff8a80; --bad-bg:#44201f; --warn:#e8c467; --warn-bg:#3b3116;
+  --card:#232a33; --card-rule:rgba(150,180,220,.22); --card-top:#ef6f67; --card-shadow:0 10px 30px rgba(0,0,0,.45);
+  --bubble-me:#263140; --bubble-ai:#1b2027;
+  color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:17px;line-height:1.5;
+  padding-left:var(--gl);padding-right:var(--gr);padding-block:0;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:
+  radial-gradient(42% 38% at 12% 8%,var(--blob-1),transparent 70%),
+  radial-gradient(38% 34% at 88% 18%,var(--blob-3),transparent 70%),
+  radial-gradient(44% 40% at 70% 92%,var(--blob-2),transparent 70%),
+  radial-gradient(30% 30% at 20% 80%,var(--blob-3),transparent 70%)}
+.glass,nav.tabs,.banner,.msg.me .bubble,.kc,form.newcard,.study,.summary div,.sheet,.draft,.chatbar select,.composer textarea,input[type=search],input[type=text],textarea,select{
+  background:var(--glass);border:1px solid var(--glass-border);backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4);box-shadow:inset 0 1px 0 var(--glass-hi)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--glass-border);background:var(--glass);backdrop-filter:blur(12px) saturate(1.3);-webkit-backdrop-filter:blur(12px) saturate(1.3);box-shadow:inset 0 1px 0 var(--glass-hi);border-radius:10px;padding:8px 14px;min-height:42px;display:inline-flex;align-items:center;gap:7px;justify-content:center;font-weight:700;font-size:15px;line-height:1.2}
+button:active:not(:disabled){background:var(--soft)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.12)}
+button.quiet{border-color:transparent;background:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;font-weight:400;color:var(--muted)}
+button.quiet:active:not(:disabled){background:var(--soft);color:var(--fg)}
+button.danger{color:var(--bad);border-color:var(--bad)}
+button.small{min-height:34px;padding:4px 10px;font-size:14px;border-radius:8px}
+button:disabled{opacity:.45;cursor:default}
+button.on{background:var(--soft);border-color:var(--accent);color:var(--accent)}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+input[type=text],input[type=search],textarea,select{font-size:17px;border-radius:10px;padding:10px 12px;min-width:0;width:100%}
+textarea{resize:vertical;min-height:44px}
+select{appearance:auto}
+a{color:var(--accent)}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.muted{color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+
+.app{height:100%;display:flex;flex-direction:column;min-height:0}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:12px 10px;flex:none;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;min-width:0}
+.brand h1{font-size:28px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
+.brand .state{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.brand .state .dot{width:8px;height:8px;border-radius:50%;background:var(--line-2);flex:none}
+.brand .state.ok .dot{background:var(--ok)}
+.brand .state.warn .dot{background:var(--warn)}
+.brand .state.busy .dot{background:var(--accent);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+nav.tabs{display:flex;gap:4px;border-radius:12px;padding:4px;box-shadow:inset 0 1px 0 var(--glass-hi),var(--glass-shadow)}
+nav.tabs button{min-height:38px;border:0;background:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;font-weight:700;padding:6px 14px;border-radius:9px;color:var(--muted);position:relative}
+nav.tabs button.active{background:var(--accent);color:var(--accent-fg)}
+nav.tabs .badge{font-size:12px;background:var(--due);color:#fff;border-radius:999px;padding:1px 7px;min-width:20px;line-height:1.4}
+nav.tabs button.active .badge{background:var(--accent-fg);color:var(--accent)}
+@media (max-width:520px){ header.top{padding-block:10px 8px} .brand h1{font-size:22px} nav.tabs{width:100%} nav.tabs button{flex:1;padding:6px 8px} }
+
+main{flex:1;min-height:0;display:flex;flex-direction:column}
+.view{flex:1;min-height:0;display:flex;flex-direction:column}
+.banner{border-radius:10px;padding:8px 12px;font-size:14px;display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.banner.warn{background:var(--warn-bg)}
+.banner.bad{background:var(--bad-bg)}
+.banner.ok{background:var(--ok-bg)}
+.banner button{margin-left:auto}
+
+/* ---------- Chat ---------- */
+.chatbar{display:flex;gap:8px;align-items:center;flex:none;padding-bottom:8px}
+.chatbar select{flex:1;min-width:0}
+.messages{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-block:6px 12px;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){.messages{scroll-behavior:auto}}
+.msg{max-width:min(720px,100%);display:flex;flex-direction:column;gap:6px;min-width:0}
+.msg.me{align-self:flex-end;align-items:flex-end}
+.msg.ai{align-self:flex-start}
+.bubble{border-radius:16px;padding:10px 14px;min-width:0;overflow-wrap:anywhere}
+.msg.me .bubble{border-bottom-right-radius:4px;white-space:pre-wrap}
+.msg.ai .bubble{background:transparent;border:0;border-radius:0;padding:4px 2px;box-shadow:none}
+.bubble p{margin:0 0 .6em}
+.bubble p:last-child,.bubble ul:last-child,.bubble ol:last-child,.bubble pre:last-child{margin-bottom:0}
+.bubble h1,.bubble h2,.bubble h3{font-size:1.08em;margin:.6em 0 .3em;font-weight:700}
+.bubble ul,.bubble ol{margin:0 0 .6em;padding-left:1.4em}
+.bubble li{margin:.15em 0}
+.bubble code{font-family:var(--mono);font-size:.9em;background:var(--soft);padding:1px 5px;border-radius:5px}
+.bubble pre{background:var(--glass-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;overflow-x:auto;margin:0 0 .6em}
+.bubble pre code{background:transparent;padding:0;font-size:.88em}
+.bubble.thinking{color:var(--muted);font-style:italic}
+.bubble blockquote{margin:0 0 .6em;padding-left:.8em;border-left:3px solid var(--line-2);color:var(--muted)}
+.msg .tools{display:flex;gap:6px;flex-wrap:wrap}
+.msg .note{font-size:13px;color:var(--muted)}
+.welcome{margin:auto 0;max-width:600px;display:flex;flex-direction:column;gap:14px;padding-block:20px}
+.welcome h2{font-size:30px}
+.welcome p{margin:0;max-width:60ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{font-weight:400;border-radius:999px;min-height:38px;padding:6px 14px;text-align:left}
+.chips button.primary{font-weight:700}
+.composer{flex:none;display:flex;gap:8px;align-items:flex-end;padding-block:8px 12px;border-top:1px solid var(--glass-border)}
+.composer textarea{flex:1;max-height:160px;min-height:44px;border-radius:14px;padding:10px 14px;resize:none;line-height:1.4}
+.composer .opts{display:flex;gap:6px;flex-direction:column}
+.composer button.icon{width:44px;padding:0;border-radius:12px}
+
+/* ---------- Karten ---------- */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-bottom:10px;flex:none}
+.toolbar input[type=search]{flex:1;min-width:160px}
+.stats{display:flex;gap:16px;flex-wrap:wrap;padding-bottom:12px;flex:none}
+.stat{display:flex;flex-direction:column}
+.stat b{font-family:var(--display);font-size:24px;line-height:1.1}
+.stat span{font-size:13px;color:var(--muted)}
+.stat.due b{color:var(--due)}
+.scroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:16px}
+.topic{margin-bottom:18px}
+.topic h3{font-size:18px;margin-bottom:8px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.topic h3 small{font-size:13px;color:var(--muted);font-family:var(--body);font-weight:400}
+.cardgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.kc{border-radius:10px;padding:12px 14px 10px;display:flex;flex-direction:column;gap:6px;position:relative;min-width:0;overflow:hidden;
+  background-image:repeating-linear-gradient(to bottom,transparent 0 27px,var(--card-rule) 27px 28px);background-position:0 6px}
+.kc::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--card-top);border-radius:10px 10px 0 0}
+.kc .front{font-weight:700;overflow-wrap:anywhere}
+.kc .back{font-size:15px;color:var(--muted);overflow-wrap:anywhere;white-space:pre-wrap}
+.kc .meta{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);margin-top:auto;flex-wrap:wrap}
+.kc .meta .pill{padding:1px 8px;border-radius:999px;background:var(--soft);color:var(--accent);font-weight:700}
+.kc .meta button{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
+.kc .meta .pill.due{background:var(--due-bg);color:var(--due)}
+.kc .meta .pill.new{background:var(--warn-bg);color:var(--warn)}
+.kc .meta .actions{margin-left:auto;display:flex;gap:4px}
+.kc .meta button{min-height:28px;padding:2px 8px;font-size:12px}
+.kc.editing{background-image:none}
+.kc textarea{font-size:15px;min-height:40px}
+.kc .editrow{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.empty{margin:auto 0;max-width:560px;display:flex;flex-direction:column;gap:12px;padding-block:24px}
+.empty h2{font-size:26px}
+.empty p{margin:0;max-width:60ch}
+form.newcard{display:grid;gap:8px;grid-template-columns:1fr 1fr;border-radius:12px;padding:12px;margin-bottom:14px}
+form.newcard textarea{grid-column:1/-1}
+form.newcard .row{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+form.newcard input{grid-column:1/-1}
+@media (min-width:640px){form.newcard input{grid-column:auto}}
+
+/* ---------- Lernen ---------- */
+.learn{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding-block:10px 20px}
+.learn-inner{width:100%;max-width:680px;display:flex;flex-direction:column;gap:14px}
+.progress{height:6px;background:var(--glass-2);border:1px solid var(--glass-border);border-radius:4px;overflow:hidden}
+.progress div{height:100%;background:var(--accent);transition:width .25s}
+@media (prefers-reduced-motion:reduce){.progress div{transition:none}}
+.study{background:var(--glass-3);border-radius:14px;padding:22px 22px 18px;box-shadow:inset 0 1px 0 var(--glass-hi),var(--card-shadow);position:relative;min-height:220px;display:flex;flex-direction:column;gap:14px;overflow:hidden;
+  background-image:repeating-linear-gradient(to bottom,transparent 0 31px,var(--card-rule) 31px 32px);background-position:0 10px}
+.study::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--card-top);border-radius:14px 14px 0 0}
+.study .q{font-family:var(--display);font-size:25px;font-weight:600;overflow-wrap:anywhere;line-height:1.3}
+.study .a{font-size:18px;white-space:pre-wrap;overflow-wrap:anywhere;border-top:1px dashed var(--line-2);padding-top:12px}
+.study .topicline{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted)}
+.grades{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.grades button{flex-direction:column;gap:2px;min-height:56px;padding:6px 4px;border-width:1.5px}
+.grades button small{font-weight:400;font-size:12px;color:var(--muted)}
+.grades button.again{border-color:var(--bad);color:var(--bad)}
+.grades button.hard{border-color:var(--warn);color:var(--warn)}
+.grades button.good{border-color:var(--ok);color:var(--ok)}
+.grades button.easy{border-color:var(--accent);color:var(--accent)}
+@media (max-width:420px){.grades{grid-template-columns:repeat(2,1fr)}}
+.check{display:flex;flex-direction:column;gap:8px}
+.check .row{display:flex;gap:8px;align-items:flex-end}
+.check textarea{flex:1}
+.verdict{border-radius:10px;padding:10px 12px;font-size:15px;border:1px solid var(--glass-border)}
+.verdict.richtig{background:var(--ok-bg)}
+.verdict.teilweise{background:var(--warn-bg)}
+.verdict.falsch{background:var(--bad-bg)}
+.verdict b{display:block;margin-bottom:2px}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.summary div{border-radius:10px;padding:10px;text-align:center}
+.summary b{display:block;font-family:var(--display);font-size:24px}
+.summary span{font-size:12px;color:var(--muted)}
+.start h2{font-size:28px}
+.start p{margin:0}
+
+/* ---------- Sheet (Kartenvorschau) ---------- */
+.sheet-bg{position:fixed;inset:0;background:rgba(10,14,20,.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:20;display:flex;align-items:flex-end;justify-content:center;padding-left:var(--gl);padding-right:var(--gr);padding-top:env(safe-area-inset-top,0px)}
+.sheet{background:var(--glass-3);border-bottom:0;border-radius:18px 18px 0 0;width:min(760px,100%);max-height:88%;display:flex;flex-direction:column;box-shadow:inset 0 1px 0 var(--glass-hi),var(--card-shadow);padding-bottom:env(safe-area-inset-bottom,0px);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4)}
+.sheet header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px 8px;border-bottom:1px solid var(--glass-border)}
+.sheet header h2{font-size:20px}
+.sheet .body{overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.sheet footer{display:flex;gap:8px;justify-content:flex-end;padding:10px 16px 14px;border-top:1px solid var(--glass-border);flex-wrap:wrap;align-items:center}
+.sheet footer .muted{margin-right:auto;font-size:14px}
+.draft{display:grid;grid-template-columns:auto 1fr;gap:8px 10px;align-items:start;border-radius:10px;padding:10px;background:var(--glass-2)}
+.draft input[type=checkbox]{width:20px;height:20px;margin-top:10px;accent-color:var(--accent)}
+.draft .fields{display:flex;flex-direction:column;gap:6px;min-width:0}
+.draft textarea{font-size:15px;min-height:40px}
+.draft input[type=text]{font-size:14px;padding:6px 10px}
+.draft.off{opacity:.5}
+
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;z-index:30;max-width:calc(100% - 32px);box-shadow:var(--card-shadow)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Lernkasten</h1>
+      <div class="state" id="state"><span class="dot"></span><span id="stateText">Verbinde …</span></div>
+    </div>
+    <nav class="tabs" aria-label="Ansichten">
+      <button type="button" data-view="chat" class="active">Chat</button>
+      <button type="button" data-view="karten">Karten <span class="badge num" id="badgeCards" hidden>0</span></button>
+      <button type="button" data-view="lernen">Lernen <span class="badge num" id="badgeDue" hidden>0</span></button>
+    </nav>
+  </header>
+  <div id="banners"></div>
+  <main>
+    <!-- Chat -->
+    <section class="view" id="view-chat">
+      <div class="chatbar">
+        <select id="chatSelect" aria-label="Gespräch wählen"></select>
+        <button type="button" id="btnNewChat" title="Neues Gespräch"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Neu</button>
+        <button type="button" id="btnDelChat" class="quiet" title="Gespräch löschen"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+      </div>
+      <div class="messages" id="messages"></div>
+      <form class="composer" id="composer">
+        <textarea id="input" rows="1" placeholder="Was möchtest du lernen oder verstehen?" aria-label="Nachricht"></textarea>
+        <div class="opts">
+          <button type="button" id="btnDeep" class="small" title="Gründlicher antworten (dauert länger)">Gründlich</button>
+          <button type="submit" id="btnSend" class="primary icon" title="Senden" aria-label="Senden"><svg class="i" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Karten -->
+    <section class="view" id="view-karten" hidden>
+      <div class="stats" id="stats"></div>
+      <div class="toolbar">
+        <input type="search" id="search" placeholder="Karten durchsuchen …" aria-label="Karten durchsuchen">
+        <button type="button" id="btnAddCard"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Karte</button>
+      </div>
+      <div class="scroll" id="cardsList"></div>
+    </section>
+
+    <!-- Lernen -->
+    <section class="view" id="view-lernen" hidden>
+      <div class="learn"><div class="learn-inner" id="learn"></div></div>
+    </section>
+  </main>
+</div>
+<div id="sheetHost"></div>
+<div id="toastHost"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const now = () => new Date().toISOString();
+const DAY = 86400000;
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const isCoarse = matchMedia('(pointer:coarse)').matches;
+
+/* ---------- Zustand ---------- */
+const S = {
+  view: 'chat', cards: [], chats: [], chatId: null,
+  deep: false, busy: false, stream: null, // stream = {chatId, text}
+  storage: 'none', // 'db' | 'local' | 'none'
+  loaded: { cards: false, chats: false },
+  search: '', editing: null, adding: false, confirmDel: null,
+  session: null, ai: true,
+};
+let sample = null, db = null;
+
+/* ---------- Lokaler Fallback ---------- */
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+/* ---------- Speicher ---------- */
+const store = {
+  async putCard(card) {
+    if (S.storage === 'db') await db.doc('cards/' + card.id).set(stripId(card));
+    else { S.cards = S.cards.filter(c => c.id !== card.id).concat([card]); LS.set('lk_cards', S.cards); render(); }
+  },
+  async putCards(cards) {
+    if (S.storage === 'db') { for (const c of cards) await db.doc('cards/' + c.id).set(stripId(c)); }
+    else { const ids = new Set(cards.map(c => c.id)); S.cards = S.cards.filter(c => !ids.has(c.id)).concat(cards); LS.set('lk_cards', S.cards); render(); }
+  },
+  async delCard(id) {
+    if (S.storage === 'db') await db.doc('cards/' + id).delete();
+    else { S.cards = S.cards.filter(c => c.id !== id); LS.set('lk_cards', S.cards); render(); }
+  },
+  async putChat(chat) {
+    trimChat(chat);
+    if (S.storage === 'db') await db.doc('chats/' + chat.id).set(stripId(chat));
+    else { S.chats = S.chats.filter(c => c.id !== chat.id).concat([chat]); LS.set('lk_chats', S.chats); render(); }
+  },
+  async delChat(id) {
+    if (S.storage === 'db') await db.doc('chats/' + id).delete();
+    else { S.chats = S.chats.filter(c => c.id !== id); LS.set('lk_chats', S.chats); render(); }
+  },
+};
+function stripId(o) { const c = { ...o }; delete c.id; return c; }
+function trimChat(chat) {
+  // Ein Gespräch ist ein Dokument; es darf nicht unbegrenzt wachsen.
+  while (chat.messages.length > 120 || JSON.stringify(chat.messages).length > 180000) chat.messages.shift();
+}
+function wrapWrite(p, what) {
+  return p.catch(e => {
+    const code = e && e.code;
+    if (code === 'quota_exceeded') toast('Speicher voll. Lösche alte Karten oder Gespräche.');
+    else if (code === 'invalid_argument') toast('Speichern nicht erlaubt. ' + what + ' bleibt nur in dieser Ansicht.');
+    else toast('Speichern fehlgeschlagen: ' + what);
+    console.warn('write failed', what, e);
+  });
+}
+
+/* ---------- Start ---------- */
+const use = n => (window.claude && typeof claude.use === 'function') ? claude.use(n).catch(() => null) : Promise.resolve(null);
+async function init() {
+  routeFromHash();
+  render();
+  const [s, d] = await Promise.all([use('sample'), use('db')]);
+  sample = s; db = d;
+  if (!sample) { S.ai = false; banner('warn', 'Claude ist in dieser Ansicht nicht verfügbar. Chat und Kartenerzeugung sind aus, Karten lernen geht trotzdem.', 'noai'); }
+  if (db) startDb(); else startLocal();
+  render();
+}
+function startLocal() {
+  S.storage = 'local';
+  S.cards = LS.get('lk_cards', []); S.chats = LS.get('lk_chats', []);
+  S.loaded.cards = S.loaded.chats = true;
+  if (!S.chatId && S.chats.length) S.chatId = latestChat().id;
+  banner('warn', 'Keine Verbindung zur Datenbank. Alles wird nur in diesem Browser gespeichert.', 'local');
+  setState('warn', 'nur lokal');
+}
+function startDb() {
+  S.storage = 'db';
+  setState('busy', 'lade …');
+  const timer = setTimeout(() => { if (!(S.loaded.cards && S.loaded.chats)) banner('warn', 'Die Daten sind noch nicht erreichbar. Was du siehst, ist vielleicht nicht aktuell.', 'slow'); }, 10000);
+  const done = () => { if (S.loaded.cards && S.loaded.chats) { clearTimeout(timer); removeBanner('slow'); setState('ok', 'gespeichert'); } };
+  const onErr = e => { console.warn('db', e); clearTimeout(timer); if (e && e.code === 'revoked') { setState('warn', 'Verbindung getrennt'); } else if (S.storage === 'db' && !S.loaded.cards && !S.loaded.chats) { startLocal(); } };
+  db.collection('cards').onSnapshot(snap => {
+    S.cards = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!snap.metadata.fromCache) { S.loaded.cards = true; done(); }
+    render();
+  }, onErr);
+  db.collection('chats').onSnapshot(snap => {
+    S.chats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!snap.metadata.fromCache) { S.loaded.chats = true; done(); }
+    if (!S.chatId && S.chats.length) S.chatId = latestChat().id;
+    if (S.chatId && !S.chats.some(c => c.id === S.chatId) && !S.stream) S.chatId = S.chats.length ? latestChat().id : null;
+    render();
+  }, onErr);
+}
+function setState(kind, text) { const el = $('#state'); el.className = 'state ' + kind; $('#stateText').textContent = text; }
+
+/* ---------- Hinweise ---------- */
+function banner(kind, text, key) {
+  removeBanner(key);
+  const el = document.createElement('div'); el.className = 'banner ' + kind; el.dataset.key = key || '';
+  el.innerHTML = '<span>' + esc(text) + '</span><button type="button" class="quiet small" aria-label="Hinweis schließen">✕</button>';
+  el.querySelector('button').onclick = () => el.remove();
+  $('#banners').append(el);
+}
+function removeBanner(key) { if (key) $('#banners').querySelectorAll('[data-key="' + key + '"]').forEach(e => e.remove()); }
+let toastT;
+function toast(text) {
+  const host = $('#toastHost'); host.innerHTML = '<div class="toast" role="status">' + esc(text) + '</div>';
+  clearTimeout(toastT); toastT = setTimeout(() => host.innerHTML = '', 3200);
+}
+
+/* ---------- Claude ---------- */
+const AI_ERRORS = {
+  not_granted: ['Du hast der Seite nicht erlaubt, Claude zu nutzen. Chat und Kartenerzeugung sind deshalb aus.', true],
+  sampling_disabled: ['Claude ist für dieses Konto nicht verfügbar.', true],
+  not_declared: ['Diese Version der Seite darf Claude nicht nutzen.', true],
+  capability_disabled: ['Claude ist in dieser Ansicht nicht nutzbar.', true],
+  capability_removed: ['Claude ist in dieser Ansicht nicht nutzbar.', true],
+  rate_limited: ['Gerade zu viele Anfragen oder dein Kontingent ist für den Moment aufgebraucht. Warte ein paar Minuten.', false],
+  session_expired: ['Deine Anmeldung ist abgelaufen. Lade die Seite neu und melde dich an.', false],
+  refused: ['Dazu möchte Claude nichts sagen. Formuliere es bitte anders.', false],
+  empty_completion: ['Claude hat nichts geantwortet. Versuch es mit einer anderen Formulierung.', false],
+  invalid_json: ['Die Antwort ließ sich nicht als Karten lesen. Versuch es noch einmal.', false],
+  prompt_too_large: ['Das Gespräch ist zu lang geworden. Starte ein neues Gespräch.', false],
+  upstream_error: ['Die Verbindung zu Claude ist gestört. Bitte gleich noch einmal versuchen.', false],
+};
+function aiFail(e) {
+  const code = e && e.code ? e.code : 'upstream_error';
+  if (code === 'cancelled') return;
+  const [text, fatal] = AI_ERRORS[code] || AI_ERRORS.upstream_error;
+  if (fatal) { S.ai = false; banner('bad', text, 'noai'); render(); } else toast(text);
+  console.warn('sample', e);
+}
+function rules() {
+  const topics = topicList().slice(0, 15).map(t => t.name).join(', ');
+  const due = dueCards().length;
+  return 'Du bist ein Lernbegleiter in einer persönlichen Lern-App mit Karteikarten. Antworte auf Deutsch, außer die Frage ist in einer anderen Sprache. '
+    + 'Erkläre klar, in kurzen Absätzen, mit konkreten Beispielen. Nutze Markdown sparsam: Listen, **fett**, `Code`, bei Bedarf eine Überschrift. Keine Tabellen. '
+    + 'Wenn eine Frage unklar ist, frag kurz nach. Nach einer Erklärung darfst du eine kurze Verständnisfrage stellen, aber nicht in jeder Antwort. '
+    + 'Der Nutzer kann aus deinen Antworten Karteikarten erzeugen; schreibe deshalb so, dass Begriffe und Kernaussagen klar benannt sind. '
+    + (topics ? 'Bisherige Lernthemen des Nutzers: ' + topics + '. ' : 'Der Nutzer hat noch keine Karten. ')
+    + 'Karten insgesamt: ' + S.cards.length + ', davon heute fällig: ' + due + '.';
+}
+function turnsFor(chat, limit) {
+  const out = []; let chars = 0;
+  for (let i = chat.messages.length - 1; i >= 0; i--) {
+    const m = chat.messages[i]; chars += m.content.length;
+    if (chars > limit && out.length) break;
+    out.unshift({ role: m.role, content: m.content });
+  }
+  return out;
+}
+let streamCtl = null;
+async function send(text) {
+  text = text.trim(); if (!text || S.busy || !S.ai) return;
+  let chat = currentChat();
+  if (!chat) { chat = newChatObj(); S.chatId = chat.id; }
+  if (chat.messages.length === 0) chat.title = text.slice(0, 48).replace(/\s+/g, ' ');
+  chat.messages.push({ role: 'user', content: text, ts: now() });
+  chat.updatedAt = now();
+  S.busy = true; S.stream = { chatId: chat.id, text: '' };
+  $('#input').value = ''; autoGrow(); LS.set('lk_draft', '');
+  render(); scrollBottom(true);
+  wrapWrite(store.putChat(chat), 'Gespräch');
+  const input = [{ role: 'user', content: rules() }, ...turnsFor(chat, 30000)];
+  streamCtl = new AbortController();
+  let result = null, partial = '';
+  try {
+    const r = await sample(input, { cache: false, signal: streamCtl.signal, modelTier: S.deep ? 'complex' : 'default',
+      onText: ({ text }) => { S.stream.text = text; partial = text; paintStream(); } });
+    result = r.text; if (r.truncated) toast('Antwort wurde abgeschnitten. Frag nach dem Rest.');
+  } catch (e) {
+    if (e && e.code === 'cancelled') result = (e.text || partial).trim() || null; else { aiFail(e); result = (e.text || partial).trim() || null; }
+  }
+  S.busy = false; S.stream = null; streamCtl = null;
+  if (result) { chat.messages.push({ role: 'assistant', content: result, ts: now() }); chat.updatedAt = now(); wrapWrite(store.putChat(chat), 'Gespräch'); }
+  render(); scrollBottom(false);
+  $('#input').focus();
+}
+function stopStream() { if (streamCtl) streamCtl.abort(); }
+
+async function draftCards(text, contextTitle) {
+  if (!S.ai) return null;
+  const topics = topicList().slice(0, 20).map(t => t.name);
+  const prompt = 'Erstelle aus dem folgenden Lerninhalt Karteikarten zum Auswendiglernen. '
+    + 'Jede Karte: "front" ist eine klare Frage oder ein Begriff (max. 120 Zeichen), "back" die knappe Antwort (1 bis 3 Sätze, oder eine kurze Liste), "topic" ein kurzes Thema aus höchstens drei Wörtern. '
+    + 'Zerlege zusammengesetzte Aussagen in einzelne Karten. Keine Karten zu Smalltalk oder Nachfragen. 2 bis 8 Karten, nur was wirklich lernenswert ist. Sprache wie der Inhalt. '
+    + (topics.length ? 'Vorhandene Themen, bitte wiederverwenden wenn passend: ' + topics.join(', ') + '. ' : '')
+    + 'Antworte nur mit einem JSON-Array von Objekten {"front": string, "back": string, "topic": string}, ohne weiteren Text.\n\n'
+    + (contextTitle ? 'Gespräch: ' + contextTitle + '\n\n' : '') + text.slice(0, 16000);
+  try {
+    const v = await sample.json(prompt, { modelTier: 'quick' });
+    const arr = Array.isArray(v) ? v : (v && Array.isArray(v.cards) ? v.cards : []);
+    return arr.filter(c => c && typeof c.front === 'string' && typeof c.back === 'string')
+      .map(c => ({ front: c.front.trim(), back: c.back.trim(), topic: String(c.topic || 'Allgemein').trim() || 'Allgemein' }))
+      .filter(c => c.front && c.back);
+  } catch (e) { aiFail(e); return null; }
+}
+async function checkAnswer(card, answer) {
+  const prompt = 'Bewerte die Antwort eines Lernenden auf eine Karteikarte. Sei fair: Umformulierungen und Teilantworten gelten, Kern muss stimmen. '
+    + 'Antworte nur mit JSON {"bewertung": "richtig" | "teilweise" | "falsch", "hinweis": string}. Der Hinweis ist ein Satz auf Deutsch: was fehlt oder falsch ist, oder ein kurzes Lob.\n\n'
+    + 'Frage: ' + card.front + '\nMusterantwort: ' + card.back + '\nAntwort des Lernenden: ' + answer.slice(0, 2000);
+  try {
+    const v = await sample.json(prompt, { modelTier: 'quick' });
+    const b = ['richtig', 'teilweise', 'falsch'].includes(v && v.bewertung) ? v.bewertung : 'teilweise';
+    return { bewertung: b, hinweis: String((v && v.hinweis) || '') };
+  } catch (e) { aiFail(e); return null; }
+}
+
+/* ---------- Gespräche ---------- */
+function latestChat() { return S.chats.slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))[0]; }
+function currentChat() { return S.chats.find(c => c.id === S.chatId) || null; }
+function newChatObj() { const c = { id: uid('g_'), title: 'Neues Gespräch', createdAt: now(), updatedAt: now(), messages: [] }; S.chats.push(c); return c; }
+
+/* ---------- Karten und Wiederholung (SM-2) ---------- */
+function newCard(front, back, topic, source) {
+  const t = now();
+  return { id: uid('k_'), front, back, topic: topic || 'Allgemein', createdAt: t, due: t, interval: 0, ease: 2.5, reps: 0, lapses: 0, lastReview: null, source: source || null };
+}
+function schedule(card, q) { // q: 1 nochmal, 3 schwer, 4 gut, 5 leicht
+  const c = { ...card };
+  if (q < 3) { c.reps = 0; c.lapses = (c.lapses || 0) + 1; c.interval = 0; c.due = new Date(Date.now() + 10 * 60000).toISOString(); }
+  else {
+    if (c.reps === 0) c.interval = q === 3 ? 1 : q === 5 ? 4 : 1;
+    else if (c.reps === 1) c.interval = q === 3 ? 3 : q === 5 ? 10 : 6;
+    else c.interval = Math.round(c.interval * (q === 3 ? 1.2 : q === 5 ? c.ease * 1.3 : c.ease));
+    c.interval = Math.max(1, Math.min(c.interval, 365));
+    c.reps = (c.reps || 0) + 1;
+    c.due = new Date(Date.now() + c.interval * DAY).toISOString();
+  }
+  c.ease = Math.max(1.3, (c.ease || 2.5) + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02)));
+  c.lastReview = now();
+  return c;
+}
+function dueCards() { const t = now(); return S.cards.filter(c => !c.due || c.due <= t); }
+function topicList() {
+  const m = new Map();
+  for (const c of S.cards) { const k = c.topic || 'Allgemein'; const e = m.get(k) || { name: k, cards: [], due: 0 }; e.cards.push(c); if (!c.due || c.due <= now()) e.due++; m.set(k, e); }
+  return [...m.values()].sort((a, b) => b.cards.length - a.cards.length || a.name.localeCompare(b.name));
+}
+function fmtDue(c) {
+  if (!c.lastReview) return { cls: 'new', text: 'neu' };
+  const ms = new Date(c.due) - Date.now();
+  if (ms <= 0) return { cls: 'due', text: 'fällig' };
+  const d = Math.ceil(ms / DAY);
+  return { cls: '', text: d === 1 ? 'morgen' : 'in ' + d + ' Tagen' };
+}
+
+/* ---------- Markdown (klein, sicher) ---------- */
+function inline(s) {
+  s = esc(s);
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,;:!?]|$)/g, '$1<em>$2</em>');
+  s = s.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,;:!?]|$)/g, '$1<em>$2</em>');
+  return s;
+}
+function blocks(txt) {
+  const lines = txt.replace(/\r/g, '').split('\n');
+  let out = '', para = [], list = null; // list = {type, items}
+  const flushP = () => { if (para.length) { out += '<p>' + inline(para.join('\n')).replace(/\n/g, '<br>') + '</p>'; para = []; } };
+  const flushL = () => { if (list) { out += '<' + list.type + '>' + list.items.map(i => '<li>' + inline(i) + '</li>').join('') + '</' + list.type + '>'; list = null; } };
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    let m;
+    if (!line.trim()) { flushP(); flushL(); continue; }
+    if ((m = line.match(/^\s{0,3}(#{1,6})\s+(.*)$/))) { flushP(); flushL(); out += '<h3>' + inline(m[2]) + '</h3>'; continue; }
+    if ((m = line.match(/^\s{0,3}[-*•]\s+(.*)$/))) { flushP(); if (!list || list.type !== 'ul') { flushL(); list = { type: 'ul', items: [] }; } list.items.push(m[1]); continue; }
+    if ((m = line.match(/^\s{0,3}\d+[.)]\s+(.*)$/))) { flushP(); if (!list || list.type !== 'ol') { flushL(); list = { type: 'ol', items: [] }; } list.items.push(m[1]); continue; }
+    if ((m = line.match(/^\s{0,3}>\s?(.*)$/))) { flushP(); flushL(); out += '<blockquote>' + inline(m[1]) + '</blockquote>'; continue; }
+    if (list && /^\s{2,}/.test(raw)) { list.items[list.items.length - 1] += ' ' + line.trim(); continue; }
+    flushL(); para.push(line);
+  }
+  flushP(); flushL();
+  return out;
+}
+function md(src) {
+  const parts = String(src).split(/```/);
+  let out = '';
+  parts.forEach((p, i) => {
+    if (i % 2) { const nl = p.indexOf('\n'); const body = nl >= 0 ? p.slice(nl + 1) : p; out += '<pre><code>' + esc(body.replace(/\n$/, '')) + '</code></pre>'; }
+    else out += blocks(p);
+  });
+  return out;
+}
+
+/* ---------- Rendern ---------- */
+function render() {
+  renderTabs();
+  if (S.view === 'chat') renderChat();
+  else if (S.view === 'karten') renderCards();
+  else renderLearn();
+}
+function renderTabs() {
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.view === S.view));
+  document.querySelectorAll('.view').forEach(v => v.hidden = v.id !== 'view-' + S.view);
+  const due = dueCards().length;
+  $('#badgeCards').hidden = !S.cards.length; $('#badgeCards').textContent = S.cards.length;
+  $('#badgeDue').hidden = !due; $('#badgeDue').textContent = due;
+}
+
+/* Chat */
+const SUGGEST = ['Erklär mir, wie Photosynthese funktioniert', 'Was ist der Unterschied zwischen Genitiv und Dativ?', 'Frag mich fünf Dinge zu den Themen, die ich gerade lerne', 'Wie merke ich mir die Planeten in der richtigen Reihenfolge?'];
+function renderChat() {
+  const sel = $('#chatSelect');
+  const chats = S.chats.slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  sel.innerHTML = chats.map(c => '<option value="' + esc(c.id) + '">' + esc(c.title || 'Gespräch') + '</option>').join('') || '<option value="">Noch kein Gespräch</option>';
+  sel.value = S.chatId || ''; sel.disabled = !chats.length;
+  $('#btnDelChat').disabled = !currentChat() || S.busy;
+  $('#btnDeep').classList.toggle('on', S.deep);
+  $('#btnDeep').disabled = !S.ai;
+  $('#input').disabled = !S.ai;
+  $('#input').placeholder = S.ai ? 'Was möchtest du lernen oder verstehen?' : 'Claude ist hier nicht verfügbar';
+  const sendBtn = $('#btnSend');
+  if (S.busy) { sendBtn.innerHTML = '<svg class="i" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>'; sendBtn.title = 'Stopp'; sendBtn.setAttribute('aria-label', 'Antwort stoppen'); sendBtn.disabled = false; }
+  else { sendBtn.innerHTML = '<svg class="i" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>'; sendBtn.title = 'Senden'; sendBtn.setAttribute('aria-label', 'Senden'); sendBtn.disabled = !S.ai; }
+
+  const box = $('#messages');
+  const chat = currentChat();
+  if (!chat || !chat.messages.length) {
+    if (S.stream) { box.innerHTML = ''; }
+    else {
+      box.innerHTML = '<div class="welcome"><span class="eyebrow">Dein Lernkasten</span><h2>Frag, versteh, merk es dir.</h2>'
+        + '<p>Schreib mit Claude über das, was du gerade lernst. Aus jeder Antwort kannst du Karteikarten machen, und unter „Lernen“ fragt dich der Kasten dann im richtigen Abstand wieder ab.</p>'
+        + (S.loaded.chats && !S.cards.length ? '<p class="muted">Noch keine Karten. Die erste Erklärung ist der beste Anfang.</p>' : '')
+        + '<div class="chips">' + SUGGEST.map(s => '<button type="button" data-suggest="' + esc(s) + '"' + (S.ai ? '' : ' disabled') + '>' + esc(s) + '</button>').join('') + '</div></div>';
+      box.querySelectorAll('[data-suggest]').forEach(b => b.onclick = () => send(b.dataset.suggest));
+      return;
+    }
+  }
+  const msgs = chat ? chat.messages : [];
+  let html = '';
+  msgs.forEach((m, i) => {
+    if (m.role === 'user') html += '<div class="msg me"><div class="bubble">' + esc(m.content) + '</div></div>';
+    else {
+      html += '<div class="msg ai"><div class="bubble">' + md(m.content) + '</div>'
+        + (S.ai ? '<div class="tools"><button type="button" class="small" data-cards="' + i + '"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>Karten erstellen</button></div>' : '')
+        + '</div>';
+    }
+  });
+  if (S.stream && S.stream.chatId === (chat && chat.id)) {
+    html += '<div class="msg ai" id="streamMsg"><div class="bubble' + (S.stream.text ? '' : ' thinking') + '">' + (S.stream.text ? md(S.stream.text) : 'Claude denkt nach …') + '</div></div>';
+  } else if (msgs.length >= 2 && S.ai) {
+    html += '<div class="msg ai"><div class="tools"><button type="button" class="small quiet" data-cards="all"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>Karten aus dem ganzen Gespräch</button></div></div>';
+  }
+  box.innerHTML = html;
+  box.querySelectorAll('[data-cards]').forEach(b => b.onclick = () => cardsFromChat(b.dataset.cards, b));
+}
+function paintStream() {
+  const el = document.querySelector('#streamMsg .bubble');
+  if (!el) { render(); return; }
+  el.classList.remove('thinking'); el.innerHTML = md(S.stream.text);
+  scrollBottom(false);
+}
+function scrollBottom(force) {
+  const box = $('#messages');
+  const near = box.scrollHeight - box.scrollTop - box.clientHeight < 160;
+  if (force || near) box.scrollTop = box.scrollHeight;
+}
+async function cardsFromChat(which, btn) {
+  const chat = currentChat(); if (!chat || S.busy) return;
+  let text;
+  if (which === 'all') text = chat.messages.map(m => (m.role === 'user' ? 'Frage: ' : 'Antwort: ') + m.content).join('\n\n');
+  else { const i = Number(which); const prev = chat.messages[i - 1]; text = (prev && prev.role === 'user' ? 'Frage: ' + prev.content + '\n\n' : '') + 'Antwort: ' + chat.messages[i].content; }
+  btn.disabled = true; const old = btn.innerHTML; btn.textContent = 'Karten werden erstellt …';
+  const drafts = await draftCards(text, chat.title);
+  btn.disabled = false; btn.innerHTML = old;
+  if (!drafts) return;
+  if (!drafts.length) { toast('Darin steckt nichts Lernenswertes, meint Claude.'); return; }
+  openSheet(drafts, chat.id);
+}
+
+/* Kartenvorschau */
+function openSheet(drafts, sourceId) {
+  const host = $('#sheetHost');
+  const topics = topicList().map(t => t.name);
+  host.innerHTML = '<div class="sheet-bg"><div class="sheet" role="dialog" aria-labelledby="sheetTitle"><header><h2 id="sheetTitle">Neue Karten prüfen</h2><button type="button" class="quiet small" id="sheetClose" aria-label="Schließen">✕</button></header>'
+    + '<div class="body">' + drafts.map((d, i) => '<div class="draft" data-i="' + i + '"><input type="checkbox" checked id="dk' + i + '" aria-label="Karte übernehmen"><div class="fields">'
+      + '<textarea id="df' + i + '" aria-label="Vorderseite" rows="1">' + esc(d.front) + '</textarea>'
+      + '<textarea id="db' + i + '" aria-label="Rückseite" rows="2">' + esc(d.back) + '</textarea>'
+      + '<input type="text" id="dt' + i + '" aria-label="Thema" list="topicsList" value="' + esc(d.topic) + '"></div></div>').join('')
+    + '<datalist id="topicsList">' + topics.map(t => '<option value="' + esc(t) + '">').join('') + '</datalist></div>'
+    + '<footer><span class="muted num" id="sheetCount"></span><button type="button" id="sheetCancel">Verwerfen</button><button type="button" class="primary" id="sheetSave">Speichern</button></footer></div></div>';
+  const count = () => { const n = host.querySelectorAll('.draft input[type=checkbox]:checked').length; $('#sheetCount').textContent = n + ' von ' + drafts.length + ' Karten'; $('#sheetSave').disabled = !n; };
+  host.querySelectorAll('.draft input[type=checkbox]').forEach(cb => cb.onchange = () => { cb.closest('.draft').classList.toggle('off', !cb.checked); count(); });
+  count();
+  const close = () => host.innerHTML = '';
+  $('#sheetClose').onclick = close; $('#sheetCancel').onclick = close;
+  host.querySelector('.sheet-bg').onclick = e => { if (e.target === e.currentTarget) close(); };
+  $('#sheetSave').onclick = async () => {
+    const cards = [];
+    host.querySelectorAll('.draft').forEach(d => {
+      const i = d.dataset.i; if (!$('#dk' + i).checked) return;
+      const f = $('#df' + i).value.trim(), b = $('#db' + i).value.trim(), t = $('#dt' + i).value.trim() || 'Allgemein';
+      if (f && b) cards.push(newCard(f, b, t, sourceId));
+    });
+    if (!cards.length) return;
+    $('#sheetSave').disabled = true;
+    await wrapWrite(store.putCards(cards), 'Karten');
+    close(); toast(cards.length + (cards.length === 1 ? ' Karte gespeichert' : ' Karten gespeichert'));
+    render();
+  };
+}
+
+/* Karten */
+function renderCards() {
+  const due = dueCards().length, learned = S.cards.filter(c => c.interval >= 21).length, fresh = S.cards.filter(c => !c.lastReview).length;
+  $('#stats').innerHTML = '<div class="stat"><b class="num">' + S.cards.length + '</b><span>Karten</span></div>'
+    + '<div class="stat due"><b class="num">' + due + '</b><span>fällig</span></div>'
+    + '<div class="stat"><b class="num">' + fresh + '</b><span>neu</span></div>'
+    + '<div class="stat"><b class="num">' + learned + '</b><span>sitzen (ab 3 Wochen)</span></div>';
+  const list = $('#cardsList');
+  let html = '';
+  if (S.adding) {
+    html += '<form class="newcard" id="newcard"><span class="eyebrow" style="grid-column:1/-1">Neue Karte</span>'
+      + '<textarea id="ncFront" rows="1" placeholder="Vorderseite: Frage oder Begriff" aria-label="Vorderseite" required></textarea>'
+      + '<textarea id="ncBack" rows="2" placeholder="Rückseite: Antwort" aria-label="Rückseite" required></textarea>'
+      + '<input type="text" id="ncTopic" list="topicsList2" placeholder="Thema" aria-label="Thema"><datalist id="topicsList2">' + topicList().map(t => '<option value="' + esc(t.name) + '">').join('') + '</datalist>'
+      + '<div class="row"><button type="button" id="ncCancel">Abbrechen</button><button type="submit" class="primary">Speichern</button></div></form>';
+  }
+  const q = S.search.trim().toLowerCase();
+  const cards = q ? S.cards.filter(c => (c.front + ' ' + c.back + ' ' + c.topic).toLowerCase().includes(q)) : S.cards;
+  if (!S.cards.length) {
+    html += '<div class="empty"><span class="eyebrow">Karten</span><h2>Der Kasten ist noch leer.</h2>'
+      + '<p>Karten entstehen aus dem Chat: Bei jeder Antwort von Claude gibt es „Karten erstellen“. Du prüfst die Vorschläge und speicherst, was du behalten willst. Oder du legst oben eine Karte von Hand an.</p>'
+      + (S.loaded.cards ? '' : '<p class="muted">Lade Karten …</p>') + '</div>';
+  } else if (!cards.length) {
+    html += '<p class="muted">Keine Karte passt zu „' + esc(S.search) + '“.</p>';
+  } else {
+    const byTopic = new Map();
+    for (const c of cards) { const k = c.topic || 'Allgemein'; if (!byTopic.has(k)) byTopic.set(k, []); byTopic.get(k).push(c); }
+    const topics = [...byTopic.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+    for (const [name, arr] of topics) {
+      arr.sort((a, b) => (a.due || '').localeCompare(b.due || ''));
+      const tdue = arr.filter(c => !c.due || c.due <= now()).length;
+      html += '<section class="topic"><h3>' + esc(name) + ' <small class="num">' + arr.length + (arr.length === 1 ? ' Karte' : ' Karten') + (tdue ? ', ' + tdue + ' fällig' : '') + '</small>'
+        + '<button type="button" class="small quiet" data-learn-topic="' + esc(name) + '">Üben</button></h3><div class="cardgrid">';
+      for (const c of arr) {
+        if (S.editing === c.id) {
+          html += '<div class="kc editing"><textarea id="ef_' + esc(c.id) + '" rows="2" aria-label="Vorderseite">' + esc(c.front) + '</textarea><textarea id="eb_' + esc(c.id) + '" rows="3" aria-label="Rückseite">' + esc(c.back) + '</textarea>'
+            + '<input type="text" id="et_' + esc(c.id) + '" value="' + esc(c.topic || '') + '" aria-label="Thema" list="topicsList2"><div class="editrow"><button type="button" class="small" data-edit-cancel>Abbrechen</button><button type="button" class="small primary" data-edit-save="' + esc(c.id) + '">Speichern</button></div></div>';
+          continue;
+        }
+        const d = fmtDue(c);
+        const delLabel = S.confirmDel === c.id ? 'Wirklich löschen?' : 'Löschen';
+        html += '<div class="kc"><div class="front">' + esc(c.front) + '</div><div class="back">' + esc(c.back) + '</div>'
+          + '<div class="meta"><span class="pill ' + d.cls + '">' + d.text + '</span>' + (c.reps ? '<span class="num">' + c.reps + '× gewusst</span>' : '')
+          + '<span class="actions"><button type="button" class="quiet" data-edit="' + esc(c.id) + '">Bearbeiten</button><button type="button" class="quiet' + (S.confirmDel === c.id ? ' danger' : '') + '" data-del="' + esc(c.id) + '">' + delLabel + '</button></span></div></div>';
+      }
+      html += '</div></section>';
+    }
+  }
+  list.innerHTML = html;
+  const nc = $('#newcard');
+  if (nc) {
+    nc.onsubmit = async e => { e.preventDefault(); const f = $('#ncFront').value.trim(), b = $('#ncBack').value.trim(); if (!f || !b) return; const t = $('#ncTopic').value.trim(); S.adding = false; await wrapWrite(store.putCard(newCard(f, b, t)), 'Karte'); toast('Karte gespeichert'); render(); };
+    $('#ncCancel').onclick = () => { S.adding = false; render(); };
+    $('#ncFront').focus();
+  }
+  list.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { S.editing = b.dataset.edit; S.confirmDel = null; render(); });
+  list.querySelectorAll('[data-edit-cancel]').forEach(b => b.onclick = () => { S.editing = null; render(); });
+  list.querySelectorAll('[data-edit-save]').forEach(b => b.onclick = async () => {
+    const id = b.dataset.editSave; const c = S.cards.find(x => x.id === id); if (!c) return;
+    const f = $('#ef_' + id).value.trim(), bk = $('#eb_' + id).value.trim(), t = $('#et_' + id).value.trim() || 'Allgemein';
+    if (!f || !bk) { toast('Beide Seiten brauchen Text.'); return; }
+    S.editing = null; await wrapWrite(store.putCard({ ...c, front: f, back: bk, topic: t }), 'Karte'); render();
+  });
+  let delT;
+  list.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+    const id = b.dataset.del;
+    if (S.confirmDel === id) { S.confirmDel = null; await wrapWrite(store.delCard(id), 'Karte'); toast('Karte gelöscht'); render(); }
+    else { S.confirmDel = id; render(); clearTimeout(delT); delT = setTimeout(() => { if (S.confirmDel === id) { S.confirmDel = null; if (S.view === 'karten') render(); } }, 3500); }
+  });
+  list.querySelectorAll('[data-learn-topic]').forEach(b => b.onclick = () => { startSession('topic', b.dataset.learnTopic); go('lernen'); });
+}
+
+/* Lernen */
+function startSession(mode, topic) {
+  let pool;
+  if (mode === 'due') pool = dueCards();
+  else if (mode === 'topic') pool = S.cards.filter(c => (c.topic || 'Allgemein') === topic);
+  else pool = S.cards.slice();
+  pool = pool.slice().sort((a, b) => (a.due || '').localeCompare(b.due || ''));
+  if (mode !== 'due') pool.sort(() => Math.random() - 0.5);
+  S.session = { mode, topic, queue: pool.map(c => c.id), again: [], total: pool.length, done: 0, counts: { again: 0, hard: 0, good: 0, easy: 0 }, current: null, revealed: false, answer: '', verdict: null, checking: false };
+  nextCard();
+}
+function nextCard() {
+  const s = S.session; if (!s) return;
+  if (!s.queue.length && s.again.length) { s.queue = s.again; s.again = []; }
+  s.current = s.queue.shift() || null; s.revealed = false; s.answer = ''; s.verdict = null; s.checking = false;
+}
+async function grade(q) {
+  const s = S.session; const card = S.cards.find(c => c.id === s.current); if (!card) { nextCard(); render(); return; }
+  const key = q === 1 ? 'again' : q === 3 ? 'hard' : q === 4 ? 'good' : 'easy';
+  s.counts[key]++;
+  if (q === 1) s.again.push(card.id); else s.done++;
+  const updated = schedule(card, q);
+  // Lokale Kopie sofort aktualisieren, damit die Liste nicht auf den Snapshot wartet.
+  S.cards = S.cards.map(c => c.id === card.id ? updated : c);
+  nextCard(); render();
+  wrapWrite(store.putCard(updated), 'Lernstand');
+}
+function renderLearn() {
+  const el = $('#learn');
+  const s = S.session;
+  if (!s) {
+    const due = dueCards(), topics = topicList();
+    let html = '<div class="start"><span class="eyebrow">Lernen</span>';
+    if (!S.cards.length) {
+      html += '<h2>Noch nichts zu lernen.</h2><p>Sobald Karten im Kasten sind, erscheinen sie hier zur Abfrage. Fang im Chat an oder lege unter „Karten“ eine Karte an.</p>'
+        + '<div class="chips" style="margin-top:12px"><button type="button" data-go="chat">Zum Chat</button><button type="button" data-go="karten">Zu den Karten</button></div></div>';
+    } else {
+      html += due.length ? '<h2><span class="num">' + due.length + '</span> ' + (due.length === 1 ? 'Karte ist' : 'Karten sind') + ' fällig.</h2><p>Erst die Frage, dann die Antwort, dann sagst du, wie gut du es wusstest. Danach legt der Kasten den nächsten Termin fest.</p>'
+        : '<h2>Alles im Rhythmus.</h2><p>Heute ist keine Karte fällig. Du kannst trotzdem ein Thema oder alles üben; das verschiebt die Termine nach deinem Ergebnis.</p>';
+      html += '<div class="chips" style="margin-top:14px">' + (due.length ? '<button type="button" class="primary" data-start="due">Fällige lernen (' + due.length + ')</button>' : '')
+        + '<button type="button" data-start="all">Alle üben (' + S.cards.length + ')</button></div>';
+      html += '<div style="margin-top:18px"><span class="eyebrow">Nach Thema</span><div class="chips" style="margin-top:8px">' + topics.map(t => '<button type="button" data-start-topic="' + esc(t.name) + '">' + esc(t.name) + ' <span class="muted num">' + t.cards.length + (t.due ? ' · ' + t.due + ' fällig' : '') + '</span></button>').join('') + '</div></div></div>';
+    }
+    el.innerHTML = html;
+    el.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+    el.querySelectorAll('[data-start]').forEach(b => b.onclick = () => { startSession(b.dataset.start); render(); });
+    el.querySelectorAll('[data-start-topic]').forEach(b => b.onclick = () => { startSession('topic', b.dataset.startTopic); render(); });
+    return;
+  }
+  const card = s.current ? S.cards.find(c => c.id === s.current) : null;
+  if (!card) {
+    const c = s.counts, n = c.again + c.hard + c.good + c.easy;
+    el.innerHTML = '<div class="start"><span class="eyebrow">Fertig</span><h2>' + (s.total ? 'Runde geschafft.' : 'Nichts zu üben.') + '</h2>'
+      + (s.total ? '<p class="muted num">' + s.total + (s.total === 1 ? ' Karte, ' : ' Karten, ') + n + ' Antworten.</p>' : '') + '</div>'
+      + (s.total ? '<div class="summary"><div><b class="num">' + c.again + '</b><span>Nochmal</span></div><div><b class="num">' + c.hard + '</b><span>Schwer</span></div><div><b class="num">' + c.good + '</b><span>Gut</span></div><div><b class="num">' + c.easy + '</b><span>Leicht</span></div></div>' : '')
+      + '<div class="chips"><button type="button" class="primary" id="learnBack">Zur Übersicht</button>' + (dueCards().length ? '<button type="button" id="learnMore">Weiter mit Fälligen (' + dueCards().length + ')</button>' : '') + '</div>';
+    $('#learnBack').onclick = () => { S.session = null; render(); };
+    const more = $('#learnMore'); if (more) more.onclick = () => { startSession('due'); render(); };
+    return;
+  }
+  const pos = s.done + s.counts.again, left = s.queue.length + s.again.length + 1;
+  const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+  let html = '<div class="topicline"><span>' + esc(s.mode === 'due' ? 'Fällige Karten' : s.mode === 'topic' ? s.topic : 'Alle Karten') + '</span><span class="num">' + s.done + ' von ' + s.total + ' · noch ' + left + '</span></div>'
+    + '<div class="progress" aria-hidden="true"><div style="width:' + pct + '%"></div></div>'
+    + '<div class="study"><span class="eyebrow">' + esc(card.topic || 'Allgemein') + '</span><div class="q">' + esc(card.front) + '</div>';
+  if (s.revealed) {
+    html += '<div class="a">' + esc(card.back) + '</div>';
+    if (s.verdict) html += '<div class="verdict ' + s.verdict.bewertung + '"><b>' + ({ richtig: 'Richtig', teilweise: 'Teilweise', falsch: 'Noch nicht' })[s.verdict.bewertung] + '</b>' + esc(s.verdict.hinweis) + '</div>';
+    html += '</div><div class="grades">'
+      + '<button type="button" class="again" data-grade="1">Nochmal<small>gleich noch mal</small></button>'
+      + '<button type="button" class="hard" data-grade="3">Schwer<small>' + nextIn(card, 3) + '</small></button>'
+      + '<button type="button" class="good" data-grade="4">Gut<small>' + nextIn(card, 4) + '</small></button>'
+      + '<button type="button" class="easy" data-grade="5">Leicht<small>' + nextIn(card, 5) + '</small></button></div>';
+  } else {
+    html += '</div>';
+    if (S.ai) html += '<div class="check"><div class="row"><textarea id="answer" rows="2" placeholder="Antwort eintippen (optional) und von Claude prüfen lassen" aria-label="Deine Antwort">' + esc(s.answer) + '</textarea>'
+      + '<button type="button" id="btnCheck"' + (s.checking ? ' disabled' : '') + '>' + (s.checking ? 'Prüfe …' : 'Prüfen') + '</button></div></div>';
+    html += '<div class="chips"><button type="button" class="primary" id="btnReveal" style="flex:1">Antwort zeigen</button></div>';
+  }
+  html += '<div class="chips"><button type="button" class="quiet small" id="learnQuit">Runde beenden</button></div>';
+  el.innerHTML = html;
+  el.querySelectorAll('[data-grade]').forEach(b => b.onclick = () => grade(Number(b.dataset.grade)));
+  const rev = $('#btnReveal'); if (rev) rev.onclick = () => { s.revealed = true; render(); };
+  const ans = $('#answer'); if (ans) ans.oninput = () => { s.answer = ans.value; };
+  const chk = $('#btnCheck'); if (chk) chk.onclick = async () => {
+    const a = (ans.value || '').trim(); if (!a) { toast('Erst eine Antwort eintippen.'); return; }
+    s.checking = true; render();
+    const v = await checkAnswer(card, a);
+    if (S.session !== s || s.current !== card.id) return;
+    s.checking = false; s.verdict = v; s.revealed = true; render();
+  };
+  $('#learnQuit').onclick = () => { S.session = null; render(); };
+}
+function nextIn(card, q) { const c = schedule(card, q); return c.interval === 1 ? '1 Tag' : c.interval + ' Tage'; }
+
+/* ---------- Navigation und Eingaben ---------- */
+const VIEWS = ['chat', 'karten', 'lernen'];
+function go(v) { if (!VIEWS.includes(v)) v = 'chat'; S.view = v; if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v); render(); if (v === 'chat') scrollBottom(true); }
+function routeFromHash() { const h = location.hash.replace('#', ''); S.view = VIEWS.includes(h) ? h : 'chat'; }
+addEventListener('hashchange', () => { routeFromHash(); render(); });
+document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => go(b.dataset.view));
+
+$('#chatSelect').onchange = e => { S.chatId = e.target.value || null; render(); scrollBottom(true); };
+$('#btnNewChat').onclick = () => { if (S.busy) return; const c = newChatObj(); S.chatId = c.id; render(); $('#input').focus(); };
+let delChatT;
+$('#btnDelChat').onclick = async () => {
+  const chat = currentChat(); if (!chat) return;
+  const b = $('#btnDelChat');
+  if (b.dataset.confirm === chat.id) { b.dataset.confirm = ''; b.classList.remove('danger'); const id = chat.id; S.chats = S.chats.filter(c => c.id !== id); S.chatId = S.chats.length ? latestChat().id : null; render(); await wrapWrite(store.delChat(id), 'Gespräch'); toast('Gespräch gelöscht'); render(); }
+  else { b.dataset.confirm = chat.id; b.classList.add('danger'); toast('Noch einmal tippen, um das Gespräch zu löschen'); clearTimeout(delChatT); delChatT = setTimeout(() => { b.dataset.confirm = ''; b.classList.remove('danger'); }, 3500); }
+};
+$('#btnDeep').onclick = () => { S.deep = !S.deep; render(); };
+$('#composer').onsubmit = e => { e.preventDefault(); if (S.busy) stopStream(); else send($('#input').value); };
+const inputEl = $('#input');
+function autoGrow() { inputEl.style.height = 'auto'; inputEl.style.height = Math.min(160, inputEl.scrollHeight) + 'px'; }
+inputEl.addEventListener('input', () => { autoGrow(); LS.set('lk_draft', inputEl.value); });
+inputEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !isCoarse && !e.isComposing) { e.preventDefault(); if (!S.busy) send(inputEl.value); } });
+inputEl.value = LS.get('lk_draft', '') || ''; autoGrow();
+$('#search').oninput = e => { S.search = e.target.value; render(); };
+$('#btnAddCard').onclick = () => { S.adding = !S.adding; S.editing = null; render(); };
+
+init();
+})();
+</script>
