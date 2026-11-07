@@ -57,12 +57,14 @@ namespace ZA
         void DumpNear()
         {
             var cam = Camera.main; var sb = new System.Text.StringBuilder(); sb.AppendLine("cullingMask=" + cam.cullingMask);
+            foreach (var c in Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None)) sb.AppendLine($"camera {c.name} enabled={c.enabled} active={c.gameObject.activeInHierarchy} mask={c.cullingMask} depth={c.depth} pos={c.transform.position:F2}");
+            foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None)) if (r.isVisible && r.gameObject.layer == Layers.SelfFP) sb.AppendLine("SICHTBAR trotz SelfFP: " + r.name);
             foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
             {
                 if (!r.enabled || !r.gameObject.activeInHierarchy) continue;
                 if (Vector3.Distance(r.bounds.ClosestPoint(cam.transform.position), cam.transform.position) > 1.2f) continue;
                 string path = r.name; for (var t = r.transform.parent; t; t = t.parent) path = t.name + "/" + path;
-                sb.AppendLine($"{path} layer={r.gameObject.layer} shadows={r.shadowCastingMode} center={r.bounds.center:F2} size={r.bounds.size:F2}");
+                sb.AppendLine($"{path} layer={r.gameObject.layer} visible={r.isVisible} shadows={r.shadowCastingMode} center={r.bounds.center:F2} size={r.bounds.size:F2}");
             }
             File.WriteAllText(Path.Combine(dir, "near.txt"), sb.ToString());
         }

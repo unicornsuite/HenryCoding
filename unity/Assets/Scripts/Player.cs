@@ -205,7 +205,7 @@ namespace ZA
         void UpdateSelf(float dt, bool alive, bool down, float moveFrac)
         {
             if (self == null) return;
-            self.root.SetActive(alive || down);
+            self.root.SetActive((alive || down) && thirdPerson); // in der Egoperspektive ganz aus (Layer-Culling reichte in HDRP nicht)
             self.root.transform.localRotation = Quaternion.Euler(0, (yaw + Mathf.PI) * Mathf.Rad2Deg, 0) * Quaternion.Euler(0, 0, 0);
             self.root.transform.rotation = Quaternion.Euler(0, (yaw + Mathf.PI) * Mathf.Rad2Deg, 0);
             string gt = weapon + tier;
