@@ -57,6 +57,8 @@ namespace ZA
             }
             g.DebugPreviewZombies(false); g.DebugLook(Mathf.PI, -0.1f); yield return new WaitForSeconds(0.3f);
             g.DebugOpenShop(); yield return new WaitForSeconds(0.5f); yield return Shot("05_shop"); g.DebugShopTab("perks"); yield return new WaitForSeconds(0.3f); yield return Shot("06_shop_perks"); g.CloseShop(false);
+            // Barrikade platzieren (Vorbereitungsphase, Startgeld reicht): Client- und Serverprüfung
+            g.DebugLook(0.5f, -0.5f); yield return new WaitForSeconds(0.3f); string pl = g.DebugPlaceProbe("barricade"); yield return new WaitForSeconds(1.5f); yield return Shot("07t_barricade"); File.WriteAllText(Path.Combine(dir, "turret.txt"), pl + "\ndanach barrikaden=" + g.DebugBarricadeCount + " serverFehler=" + g.debugLastFail);
             g.DebugReady();
             yield return new WaitForSeconds(6);
             // Zombies kommen: in Richtung des nächsten Zombies schauen

@@ -119,6 +119,25 @@ namespace ZA
         public void DebugWeapon(string id) { player.BuildViewmodel(id, upg.TryGetValue(id, out var t) ? t : 0, myColor); player.SetVmVisible(true); }
         public void DebugLook(float yaw, float pitch) { player.yaw = yaw; player.pitch = pitch; }
         public void DebugOpenShop() { OpenShop(); }
+        /// <summary>Selbsttest: Turm platzieren (Ablauf wie per Shop + Linksklick); liefert den Grund, falls ungültig</summary>
+        public string DebugPlaceTurret(string type) { if (placing == null) StartPlacing(type); UpdatePlacing(); string r = placing.valid ? "ok" : placing.reason; if (placing.valid) TryPlace(); return $"{r} x={placing.x:0.0} z={placing.z:0.0} turrets={ents.turrets.Count}"; }
+        public int DebugTurretCount => ents.turrets.Count; public int DebugBarricadeCount => ents.barricades.Count; public string debugLastFail = "";
+        /// <summary>Selbsttest: Stellen rund um den Spieler prüfen (was blockiert?) und an der ersten freien einen Turm setzen</summary>
+        public string DebugPlaceProbe(string type)
+        {
+            var sb = new System.Text.StringBuilder(); bool placed = false;
+            if (placing == null) StartPlacing(type);
+            for (int ring = 0; ring < 3; ring++) for (int k = 0; k < 8; k++)
+            {
+                float a = k * Mathf.PI / 4, rad = 3f + ring * 2f; float x = player.Pos.x + Mathf.Cos(a) * rad, z = player.Pos.z + Mathf.Sin(a) * rad;
+                float gy = World.GroundY(x, z); bool isBarr = type == "barricade"; bool ok = isBarr ? BarricadeSpotValid(x, z, 0) : SpotValid(x, z);
+                var over = Physics.OverlapSphere(new Vector3(x, gy + 1.0f, z), 0.65f, (1 << Layers.Solid) | (1 << Layers.Barricade), QueryTriggerInteraction.Ignore);
+                string names = string.Join(",", over.Take(3).Select(c => c.name));
+                sb.AppendLine($"r={rad:0} a={k * 45} x={x:0.0} z={z:0.0} gy={gy:0.00} valid={ok} overlap=[{names}]");
+                if (ok && !placed && placing != null) { placing.x = x; placing.z = z; placing.rot = 0; int price = isBarr ? D.barricadePrice : D.turret[type].price; placing.valid = money >= price; placing.reason = placing.valid ? "" : "Zu wenig Geld"; if (placing.valid) { TryPlace(); placed = true; sb.AppendLine($"-> gesendet bei {x:0.0}/{z:0.0}"); } else sb.AppendLine("-> " + placing.reason); }
+            }
+            return sb.ToString();
+        }
         public void DebugShopTab(string tab) { ui.shopTab = tab; RefreshShop(); }
         public void DebugReady() { net.Send("t", "ready"); }
         public void DebugFaceNearestZombie()
@@ -561,7 +580,6 @@ namespace ZA
                         if (by == myId)
                         {
                             sfx.Play("kill"); ui.Hitmarker(true);
-                            if (mny > 0) fx.TextNumber(new Vector3(J.F(e, "x"), zz != null ? 2.2f * zz.cfg.scale : 2, J.F(e, "z")), "+$" + mny, U.C("#69f0ae"));
                             if (s >= 3) { string txt = s >= 15 ? "UNAUFHALTSAM!" : s >= 10 ? "MASSAKER!" : s >= 7 ? "MEGA-SERIE!" : s >= 5 ? "KILL-SERIE ×5!" : s + "er-SERIE!"; ui.Streak(txt, s >= 10 ? U.C("#ff1744") : s >= 5 ? U.C("#ff9100") : U.C("#ffd600")); if (s == 5 || s == 10 || s == 15) sfx.Play("streak"); }
                         }
                         if (by >= 0) ui.Feed($"<color={PlayerColor(by)}>{PlayerName(by)}</color> ☠ {name}{(J.I(e, "h") == 1 ? " 🎯" : "")}{(s >= 3 ? $" <color=#ffd600>×{s}</color>" : "")}");
@@ -655,7 +673,9 @@ namespace ZA
         bool SpotValid(float x, float z)
         {
             float half = mapDef.size / 2 - 1.5f; if (Mathf.Abs(x) > half || Mathf.Abs(z) > half) return false;
-            if (Physics.CheckSphere(new Vector3(x, 0.6f, z), 0.7f, (1 << Layers.Solid) | (1 << Layers.Barricade), QueryTriggerInteraction.Ignore)) return false;
+            // Prüfkugel oberhalb der Standfläche (die Fläche kann eine flache Platte auf dem Solid-Layer sein, z. B. der Hospital-Vorplatz)
+            float gy = World.GroundY(x, z);
+            if (Physics.CheckSphere(new Vector3(x, gy + 1.0f, z), 0.65f, (1 << Layers.Solid) | (1 << Layers.Barricade), QueryTriggerInteraction.Ignore)) return false;
             foreach (var t in ents.turrets.Values) if (Vector2.Distance(new Vector2(x, z), new Vector2(t.x, t.z)) < 1.6f) return false;
             if (Vector2.Distance(new Vector2(x, z), new Vector2(player.Pos.x, player.Pos.z)) < 0.9f) return false;
             return true;
@@ -663,9 +683,10 @@ namespace ZA
         bool BarricadeSpotValid(float x, float z, int rot)
         {
             float half = mapDef.size / 2 - 1.5f; if (Mathf.Abs(x) > half || Mathf.Abs(z) > half) return false;
-            var center = new Vector3(x, 0.6f, z); var q = Quaternion.Euler(0, rot == 1 ? 90 : 0, 0);
-            if (Physics.CheckBox(center, new Vector3(1.3f + 0.25f, 0.55f, 0.25f + 0.25f), q, 1 << Layers.Solid, QueryTriggerInteraction.Ignore)) return false;
-            if (Physics.CheckBox(center, new Vector3(1.3f - 0.35f, 0.5f, 0.25f - 0.1f), q, 1 << Layers.Barricade, QueryTriggerInteraction.Ignore)) return false;
+            float gy = World.GroundY(x, z);
+            var center = new Vector3(x, gy + 0.95f, z); var q = Quaternion.Euler(0, rot == 1 ? 90 : 0, 0);
+            if (Physics.CheckBox(center, new Vector3(1.3f + 0.25f, 0.5f, 0.25f + 0.25f), q, 1 << Layers.Solid, QueryTriggerInteraction.Ignore)) return false;
+            if (Physics.CheckBox(center, new Vector3(1.3f - 0.35f, 0.45f, 0.25f - 0.1f), q, 1 << Layers.Barricade, QueryTriggerInteraction.Ignore)) return false;
             var p2 = new Vector2(x, z);
             if (Vector2.Distance(p2, new Vector2(player.Pos.x, player.Pos.z)) < 1.6f) return false;
             foreach (var r in ents.remotes.Values) if (r.state == "alive" && Vector2.Distance(p2, new Vector2(r.x, r.z)) < 1.6f) return false;
@@ -677,9 +698,10 @@ namespace ZA
             if (placing == null) return;
             bool isBarr = placing.type == "barricade"; int price = isBarr ? D.barricadePrice : D.turret[placing.type].price;
             float x, z; bool blocked = false;
-            if (Physics.Raycast(cam.transform.position, cam.transform.forward, out var hit, 9, Layers.PlaceMask, QueryTriggerInteraction.Ignore)) { x = hit.point.x; z = hit.point.z; blocked = hit.collider.gameObject.layer != Layers.Ground; }
+            // Standfläche: Terrain oder eine annähernd waagerechte Fläche (Platten, Straßen); Wände/Schräge gelten als blockiert
+            if (Physics.Raycast(cam.transform.position, cam.transform.forward, out var hit, 9, Layers.PlaceMask, QueryTriggerInteraction.Ignore)) { x = hit.point.x; z = hit.point.z; blocked = hit.collider.gameObject.layer != Layers.Ground && (hit.normal.y < 0.85f || hit.point.y > World.GroundY(x, z) + 0.3f); }
             else { var p = cam.transform.position + cam.transform.forward * 5; x = p.x; z = p.z; }
-            placing.x = x; placing.z = z; placing.ghost.transform.position = new Vector3(x, 0, z);
+            placing.x = x; placing.z = z; placing.ghost.transform.position = new Vector3(x, World.GroundY(x, z), z);
             if (isBarr) { placing.rot = Mathf.Abs(Mathf.Sin(player.yaw)) > 0.707f ? 1 : 0; placing.ghost.transform.rotation = Quaternion.Euler(0, placing.rot == 1 ? 90 : 0, 0); }
             else placing.ghost.transform.rotation = Quaternion.Euler(0, (player.yaw + Mathf.PI) * Mathf.Rad2Deg, 0);
             string reason = "";
@@ -713,7 +735,7 @@ namespace ZA
         public void CloseShop(bool relock = true) { shopOpen = false; UI.Show(ui.shop, false); if (relock && !paused) Lock(true); }
         void OnBought(Dictionary<string, object> m)
         {
-            if (!J.B(m, "ok")) { ui.Toast(J.S(m, "reason", "Nicht möglich"), "bad"); sfx.Play("deny"); if (placing != null) placing.pending = false; return; }
+            if (!J.B(m, "ok")) { debugLastFail = J.S(m, "reason", "Nicht möglich"); ui.Toast(debugLastFail, "bad"); sfx.Play("deny"); if (placing != null) placing.pending = false; return; }
             sfx.Play("buy"); string item = J.S(m, "item");
             if (D.weapon.ContainsKey(item)) { InitAmmo(item); if (!owned.Contains(item)) owned = D.weapons.Where(w => w.id == item || owned.Contains(w.id)).Select(w => w.id).ToList(); Equip(item); ui.Toast($"{D.weapon[item].name} gekauft!", "good"); }
             else if (item == "upgrade") { string w = J.S(m, "w"); upg[w] = J.I(m, "tier"); ui.Toast($"{D.weapon[w].name} auf Stufe {J.I(m, "tier")} aufgewertet!", "good"); if (w == weapon) player.BuildViewmodel(weapon, upg[w], myColor); }

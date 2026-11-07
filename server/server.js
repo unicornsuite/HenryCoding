@@ -867,7 +867,8 @@ function validTurretSpot(x, z) {
 /** Prüft die Begehbarkeitsmaske im Umkreis (für Karten mit vorberechneter Maske) */
 function cellFree(x, z, r) {
   const g = G.grid;
-  for (let dz = -r; dz <= r; dz += r) for (let dx = -r; dx <= r; dx += r) { const [gx, gz] = g.toCell(x + dx, z + dz); if (g.blocked[gz * g.n + gx]) return false; }
+  const offs = r > 0 ? [-r, 0, r] : [0]; // r = 0: nur die Zelle selbst (Schrittweite 0 würde sonst endlos schleifen)
+  for (const dz of offs) for (const dx of offs) { const [gx, gz] = g.toCell(x + dx, z + dz); if (g.blocked[gz * g.n + gx]) return false; }
   return true;
 }
 function boxesOverlap(a, b, m = 0) { return a.minX < b.maxX + m && a.maxX > b.minX - m && a.minZ < b.maxZ + m && a.maxZ > b.minZ - m; }

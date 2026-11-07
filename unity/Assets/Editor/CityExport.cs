@@ -60,11 +60,12 @@ namespace ZA
             // Grundflächen gebäudegroßer Objekte (auch dachlose Ruinen) sind gesperrt: kein Spawn/Generator im Hausinneren
             var footprints = hroot.GetComponentsInChildren<Renderer>(true).Where(r => r.enabled && !(r is ParticleSystemRenderer) && !r.GetComponentInParent<Terrain>() && r.bounds.size.x >= 10 && r.bounds.size.z >= 10 && r.bounds.size.y >= 8 && !IsVegetation(r.transform)).Select(r => r.bounds).ToList();
             Debug.Log($"Gebäude-Grundflächen gesperrt: {footprints.Count}");
-            bool InBuilding(float x, float z) { foreach (var fb in footprints) if (x > fb.min.x && x < fb.max.x && z > fb.min.z && z < fb.max.z) return true; return false; }
+            // Innenraum-Test: Wände in mindestens 7 von 8 Richtungen binnen 20 m (dachlose Ruinen, Innenhöfe); Hüllboxen allein sind zu grob (das Hospital-Mesh umfasst seinen Vorplatz)
             // Begehbarkeit pro Meter abtasten
             int n = (int)size; float half = size / 2;
             var walk = new bool[n * n]; var gy = new float[n * n];
             int solidMask = 1 << Layers.Solid, groundMask = 1 << Layers.Ground;
+            bool Indoors(float x, float y, float z) { int cnt = 0; for (int k = 0; k < 8; k++) { float a = k * Mathf.PI / 4; var dir = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)); foreach (var h in Physics.RaycastAll(new Vector3(x, y + 1.2f, z), dir, 20f, solidMask).OrderBy(h => h.distance)) { if (IsVegetation(h.collider)) continue; cnt++; break; } } return cnt >= 7; }
             for (int gz = 0; gz < n; gz++) for (int gx = 0; gx < n; gx++)
             {
                 float x = -half + gx + 0.5f, z = -half + gz + 0.5f;
@@ -75,7 +76,7 @@ namespace ZA
                 if (Physics.CheckBox(new Vector3(x, y + 1.1f, z), new Vector3(0.42f, 0.75f, 0.42f), Quaternion.identity, solidMask)) continue;
                 // Freier Himmel: nichts Festes über der Zelle (außer Vegetation) -> keine Gebäudeinnenräume, auch nicht offene Gerüste mit Dach
                 bool roofed = false; foreach (var h in Physics.RaycastAll(new Vector3(x, y + 0.3f, z), Vector3.up, 80, solidMask)) if (!IsVegetation(h.collider)) { roofed = true; break; }
-                if (roofed || InBuilding(x, z)) continue;
+                if (roofed || Indoors(x, y, z)) continue;
                 walk[gz * n + gx] = true; gy[gz * n + gx] = y;
             }
             // größte zusammenhängende Fläche = Spielfeld
@@ -93,11 +94,17 @@ namespace ZA
             bool Clear(int gx, int gz, int r) { for (int dz = -r; dz <= r; dz++) for (int dx = -r; dx <= r; dx++) { int x = gx + dx, z = gz + dz; if (x < 0 || z < 0 || x >= n || z >= n || !walk[z * n + x]) return false; } return true; }
             Vector2 Cell(int gx, int gz) => new Vector2(-half + gx + 0.5f, -half + gz + 0.5f);
             // Generator: freie Stelle mit viel Platz, möglichst nah an der Mitte
-            // Umschlossenheit: in wie vielen von 8 Richtungen steht binnen 45 m ein Gebäude? (Platz mitten in der Stadt statt am Feldrand)
-            int Enclosed(Vector2 p) { int cnt = 0; for (int k = 0; k < 8; k++) { float a = k * Mathf.PI / 4; var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a)); bool hit = false; for (float s = 3; s <= 45 && !hit; s += 3) { var q = p + dir * s; foreach (var fb in footprints) if (q.x > fb.min.x && q.x < fb.max.x && q.y > fb.min.z && q.y < fb.max.z) { hit = true; break; } } if (hit) cnt++; } return cnt; }
-            int bgx = -1, bgz = -1; float bscore = float.MaxValue; int bestEnc = 0;
-            for (int gz = 4; gz < n - 4; gz++) for (int gx = 4; gx < n - 4; gx++) { if (!Clear(gx, gz, 4)) continue; var cp = Cell(gx, gz); int enc = Enclosed(cp); float d = Vector2.Distance(cp, Vector2.zero) + 25f * (8 - enc); if (d < bscore) { bscore = d; bgx = gx; bgz = gz; bestEnc = enc; } }
-            Debug.Log($"Generatorplatz: Zelle ({bgx},{bgz}) Umschlossenheit {bestEnc}/8, Score {bscore:F1}");
+            // Umschlossenheit: in wie vielen von 8 Richtungen steht binnen `reach` Metern ein Gebäude? (Hüllboxen der Großobjekte)
+            int Enclosed(Vector2 p, float reach = 45f) { int cnt = 0; for (int k = 0; k < 8; k++) { float a = k * Mathf.PI / 4; var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a)); bool hit = false; for (float s = 3; s <= reach && !hit; s += 3) { var q = p + dir * s; foreach (var fb in footprints) if (q.x > fb.min.x && q.x < fb.max.x && q.y > fb.min.z && q.y < fb.max.z) { hit = true; break; } } if (hit) cnt++; } return cnt; }
+            // Platzwahl: erst großzügig freier Platz (Radius 6 m, notfalls 4), dann möglichst zentral und von Gebäuden umgeben (mind. 4/8, nicht maximal: enge Höfe und Gassen meiden)
+            int bgx = -1, bgz = -1; float bscore = float.MaxValue; int bestEnc = 0, usedClear = 0;
+            foreach (int clr in new[] { 6, 4 })
+            {
+                // offen in der Nähe (höchstens 3 von 8 Richtungen binnen 14 m verbaut: kein Hof, keine Gasse), aber Stadt ringsum (mind. 4 von 8 binnen 45 m)
+                for (int gz = clr; gz < n - clr; gz++) for (int gx = clr; gx < n - clr; gx++) { if (!Clear(gx, gz, clr)) continue; var cp = Cell(gx, gz); int near = Enclosed(cp, 14f); if (near > 3) continue; int enc = Enclosed(cp); if (enc < 4) continue; float d = Vector2.Distance(cp, Vector2.zero) + 10f * Mathf.Max(0, 6 - enc) + 6f * near; if (d < bscore) { bscore = d; bgx = gx; bgz = gz; bestEnc = enc; usedClear = clr; } }
+                if (bgx >= 0) break;
+            }
+            Debug.Log($"Generatorplatz: Zelle ({bgx},{bgz}) Umschlossenheit {bestEnc}/8, freier Radius {usedClear}, Score {bscore:F1}");
             if (bgx < 0) for (int gz = 2; gz < n - 2; gz++) for (int gx = 2; gx < n - 2; gx++) { if (!Clear(gx, gz, 2)) continue; float d = Vector2.Distance(Cell(gx, gz), Vector2.zero); if (d < bscore) { bscore = d; bgx = gx; bgz = gz; } }
             if (bgx < 0) { Debug.LogError("Keine freie Fläche für den Generator gefunden"); return; }
             Vector2 gen = Cell(bgx, bgz);
