@@ -7,6 +7,9 @@ EditorBuildSettings:
   m_Scenes:
   - enabled: 1
     path: Assets/Main.unity
-    guid: b3fbc5419039246e8a763285cdbce742
+    guid: fdb8d9c723114406eade76eda2f11d0b
+  - enabled: 1
+    path: Assets/Scenes/City.unity
+    guid: 1584b704bc468489989391a95c4780ea
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

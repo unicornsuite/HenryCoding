@@ -1,3 +1,4 @@
+using System.Linq;
 // Editor-Automatisierung: Render-Pipeline (URP) einrichten, Szene erzeugen, Mac-App bauen.
 // Aufruf: Unity -batchmode -quit -projectPath <pfad> -executeMethod ZA.Setup.Configure
 //         Unity -batchmode -quit -projectPath <pfad> -executeMethod ZA.Setup.BuildMac
@@ -79,7 +80,7 @@ namespace ZA
             var camData = camGo.AddComponent<HDAdditionalCameraData>(); camData.antialiasing = HDAdditionalCameraData.AntialiasingMode.TemporalAntialiasing; camData.dithering = true;
             var boot = new GameObject("Game"); boot.AddComponent<Game>();
             EditorSceneManager.SaveScene(scene, ScenePath);
-            EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+            EditorBuildSettings.scenes = BuildScenes().Select(x => new EditorBuildSettingsScene(x, true)).ToArray();
             AssetDatabase.SaveAssets();
             Debug.Log("Setup fertig: HDRP + Szene eingerichtet.");
         }
@@ -90,13 +91,21 @@ namespace ZA
             switch (value) { case bool b: p.boolValue = b; break; case int i: p.intValue = i; break; case float f: p.floatValue = f; break; }
         }
 
+        /// <summary>Hauptszene + optionale Stadt-Szene (aus CityExport), falls vorhanden</summary>
+        static string[] BuildScenes()
+        {
+            var l = new System.Collections.Generic.List<string> { ScenePath };
+            if (System.IO.File.Exists(CityExport.CityScenePath)) l.Add(CityExport.CityScenePath);
+            return l.ToArray();
+        }
+
         [MenuItem("Zombie-Ansturm/Mac-App bauen")]
         public static void BuildMac()
         {
             Configure();
             var opts = new BuildPlayerOptions
             {
-                scenes = new[] { ScenePath },
+                scenes = BuildScenes(),
                 locationPathName = "Build/Zombie-Ansturm.app",
                 target = BuildTarget.StandaloneOSX,
                 options = BuildOptions.None,
@@ -240,6 +249,11 @@ namespace ZA
                 var inst = (UnityEngine.GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(src);
                 UnityEditor.PrefabUtility.UnpackPrefabInstance(inst, UnityEditor.PrefabUnpackMode.Completely, UnityEditor.InteractionMode.AutomatedAction);
                 foreach (var mb in inst.GetComponentsInChildren<UnityEngine.MonoBehaviour>(true)) UnityEngine.Object.DestroyImmediate(mb);
+                // Fehlender Controller (z. B. Schrotflinte verweist auf eine falsche GUID): passenden Controller aus dem Paket per Name zuordnen
+                foreach (var an in inst.GetComponentsInChildren<UnityEngine.Animator>(true))
+                    if (an.runtimeAnimatorController == null)
+                        foreach (var g in UnityEditor.AssetDatabase.FindAssets("t:AnimatorController", new[] { WeaponsRoot + "/Animators" }))
+                        { var path = UnityEditor.AssetDatabase.GUIDToAssetPath(g); if (System.IO.Path.GetFileNameWithoutExtension(path).StartsWith(name)) { an.runtimeAnimatorController = UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.RuntimeAnimatorController>(path); UnityEngine.Debug.Log($"Controller zugeordnet: {name} -> {path}"); break; } }
                 foreach (var au in inst.GetComponentsInChildren<UnityEngine.AudioSource>(true)) UnityEngine.Object.DestroyImmediate(au);
                 foreach (var cam in inst.GetComponentsInChildren<UnityEngine.Camera>(true)) UnityEngine.Object.DestroyImmediate(cam.gameObject);
                 foreach (var li in inst.GetComponentsInChildren<UnityEngine.Light>(true)) li.enabled = false;

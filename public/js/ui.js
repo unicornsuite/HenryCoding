@@ -12,6 +12,7 @@ const WEAPON_ICON = { pistol: '🔫', smg: '💨', shotgun: '💥', rifle: '🎖
 const TURRET_ICON = { mg: '🗼', cannon: '💣', tesla: '⚡' };
 const ITEM_ICON = { ammo: '📦', nades: '💣', heal: '❤', armor: '🛡', repair: '🔧', fixturrets: '🛠', fixbarr: '🪵' };
 const MAP_STYLE = {
+  ruins: ['linear-gradient(#5c6b74 0 55%, #3a3a33 55%)', '🏚'],
   suburb: ['linear-gradient(#8fd3ff 0 55%, #6abf4b 55%)', '🏘'],
   farm: ['linear-gradient(#ffb074 0 55%, #8bc34a 55%)', '🌽'],
   base: ['linear-gradient(#a7b4c2 0 55%, #9a9a7a 55%)', '🪖'],
@@ -55,6 +56,7 @@ export const ui = {
       const m = MAPS[id], [bg, emo] = MAP_STYLE[id];
       const b = document.createElement('button'); b.className = 'mapcard'; b.dataset.map = id;
       b.innerHTML = `<div class="pic" style="background:${bg}">${emo}</div><div class="txt"><b>${esc(m.name)}</b><p>${esc(m.desc)}</p><span class="rec"></span></div>`;
+      if (m.unityOnly) { b.classList.add('unityonly'); b.title = 'Diese Karte gibt es nur in der Unity-App'; }
       b.onclick = () => h.onMap(id);
       mw.appendChild(b);
     }

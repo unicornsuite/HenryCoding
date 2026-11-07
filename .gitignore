@@ -7,3 +7,13 @@ unity/UserSettings/
 unity/Build/*_DoNotShip/
 .DS_Store
 unity/Build/
+
+# Gekaufte Asset-Store-Pakete (2,8 GB, lizenzgebunden) – nicht im Repo; über Unity Hub "My Assets" importieren, dann ZA.StoreAssets.Prepare + ZA.CityExport.Export ausführen
+unity/Assets/Animated FPS Weapons Part 1/
+unity/Assets/Animated FPS Weapons Part 1.meta
+unity/Assets/DeadDistrict/
+unity/Assets/DeadDistrict.meta
+unity/Assets/Nephilite Studios/
+unity/Assets/Nephilite Studios.meta
+unity/Assets/Snake3D/
+unity/Assets/Snake3D.meta

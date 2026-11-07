@@ -861,6 +861,13 @@ function validTurretSpot(x, z) {
   for (const b of G.solids) if (pushCircleOutOfBox(x, z, 0.7, b)) return false;
   for (const b of G.barrBoxes) if (pushCircleOutOfBox(x, z, 0.7, b)) return false;
   for (const t of G.turrets) if (dist2(x, z, t.x, t.z) < 1.6 * 1.6) return false;
+  if (G.map.mask && !cellFree(x, z, 0.7)) return false;
+  return true;
+}
+/** Prüft die Begehbarkeitsmaske im Umkreis (für Karten mit vorberechneter Maske) */
+function cellFree(x, z, r) {
+  const g = G.grid;
+  for (let dz = -r; dz <= r; dz += r) for (let dx = -r; dx <= r; dx += r) { const [gx, gz] = g.toCell(x + dx, z + dz); if (g.blocked[gz * g.n + gx]) return false; }
   return true;
 }
 function boxesOverlap(a, b, m = 0) { return a.minX < b.maxX + m && a.maxX > b.minX - m && a.minZ < b.maxZ + m && a.maxZ > b.minZ - m; }
@@ -869,6 +876,7 @@ function validBarricadeSpot(bar) {
   const half = G.map.size / 2 - 1.5;
   if (Math.abs(bar.x) > half || Math.abs(bar.z) > half) return false;
   for (const b of G.solids) if (b.minY < 1.2 && boxesOverlap(box, b, 0.25)) return false;
+  if (G.map.mask) { for (const [cx, cz] of [[box.minX, box.minZ], [box.maxX, box.minZ], [box.minX, box.maxZ], [box.maxX, box.maxZ], [bar.x, bar.z]]) if (!cellFree(cx, cz, 0)) return false; }
   for (const b of G.barrBoxes) if (boxesOverlap(box, b, -0.35)) return false; // leichtes Überlappen erlaubt (lückenlose Wälle)
   for (const t of G.turrets) if (pushCircleOutOfBox(t.x, t.z, 0.8, box)) return false;
   for (const p of players.values()) if (p.inGame && p.state === 'alive' && pushCircleOutOfBox(p.x, p.z, 0.5, box)) return false;

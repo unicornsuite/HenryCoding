@@ -164,7 +164,7 @@ namespace ZA
             RBtn(p, "+", U.C("#37474f"), plus, new Vector2(x0 + w, 1), new Vector2(x0 + w, 1), new Vector2(-46, y - 28), new Vector2(-16, y), 16);
             return v;
         }
-        static readonly Dictionary<string, (string icon, string color)> MapStyle = new Dictionary<string, (string, string)> { ["suburb"] = ("🏘", "#8fd3ff"), ["farm"] = ("🌽", "#ffb074"), ["base"] = ("🪖", "#a7b4c2"), ["graveyard"] = ("🪦", "#5c6bc0") };
+        static readonly Dictionary<string, (string icon, string color)> MapStyle = new Dictionary<string, (string, string)> { ["suburb"] = ("🏘", "#8fd3ff"), ["farm"] = ("🌽", "#ffb074"), ["base"] = ("🪖", "#a7b4c2"), ["graveyard"] = ("🪦", "#5c6bc0"), ["ruins"] = ("🏚", "#78909c") };
         public void BuildLobbyChoices(Action<string> onColor, Action<string> onMap, Action<string> onDiff)
         {
             foreach (Transform c in colorRow) UnityEngine.Object.Destroy(c.gameObject);
@@ -177,8 +177,8 @@ namespace ZA
             foreach (Transform c in mapRow) UnityEngine.Object.Destroy(c.gameObject);
             for (int i = 0; i < D.maps.Count; i++)
             {
-                var m = D.maps[i]; int col = i % 2, row = i / 2; (string icon, string color) st = MapStyle.TryGetValue(m.id, out var ms) ? ms : ("🗺", "#90a4ae");
-                var b = RBtn(mapRow, "", new Color(0.15f, 0.19f, 0.24f, 1), () => onMap(m.id), new Vector2(col * 0.5f, 1), new Vector2(col * 0.5f + 0.5f, 1), new Vector2(col == 0 ? 0 : 6, -row * 74 - 68), new Vector2(col == 0 ? -6 : 0, -row * 74), 14);
+                int cols = D.maps.Count > 4 ? 3 : 2; var m = D.maps[i]; int col = i % cols, row = i / cols; float cw = 1f / cols; (string icon, string color) st = MapStyle.TryGetValue(m.id, out var ms) ? ms : ("🗺", "#90a4ae");
+                var b = RBtn(mapRow, "", new Color(0.15f, 0.19f, 0.24f, 1), () => onMap(m.id), new Vector2(col * cw, 1), new Vector2(col * cw + cw, 1), new Vector2(col == 0 ? 0 : 4, -row * 74 - 68), new Vector2(col == cols - 1 ? 0 : -4, -row * 74), 14);
                 b.name = "map_" + m.id;
                 var stripe = RImg(b.transform, "stripe", U.C(st.color), new Vector2(0, 0), new Vector2(0, 1), new Vector2(0, 0), new Vector2(54, 0), true);
                 Txt2(stripe.transform, "ico", st.icon, 26, Color.white, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);

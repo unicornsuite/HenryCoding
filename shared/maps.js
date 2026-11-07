@@ -190,5 +190,6 @@ function graveyard() {
   };
 }
 
-export const MAPS = { suburb: suburb(), farm: farm(), base: base(), graveyard: graveyard() };
-export const MAP_ORDER = ['suburb', 'farm', 'base', 'graveyard'];
+import { RUINS } from './maps-ruins.js';
+export const MAPS = { suburb: suburb(), farm: farm(), base: base(), graveyard: graveyard(), ruins: RUINS };
+export const MAP_ORDER = ['suburb', 'farm', 'base', 'graveyard', 'ruins'];

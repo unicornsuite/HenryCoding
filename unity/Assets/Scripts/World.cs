@@ -14,6 +14,37 @@ namespace ZA
         public Light sun;
         public List<Transform> clouds = new List<Transform>();
         public float crateSpin;
+        public static World Current;
+        /// <summary>Bodenhöhe an einer Stelle (Terrain/Mesh), 0 bei flachen Klötzchenkarten</summary>
+        public static float GroundY(float x, float z)
+        {
+            if (Current == null || !Current.hasTerrain) return 0f;
+            if (Physics.Raycast(new Vector3(x, 60, z), Vector3.down, out var hit, 200, (1 << Layers.Ground) | (1 << Layers.Solid), QueryTriggerInteraction.Ignore)) return hit.point.y;
+            return 0f;
+        }
+        public bool hasTerrain;
+        /// <summary>false, solange die Stadt-Szene noch lädt</summary>
+        public bool ready = true;
+        public System.Action onReady;
+        public const string CityScene = "City";
+
+        System.Collections.IEnumerator LoadCity(string quality)
+        {
+            var op = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(CityScene, UnityEngine.SceneManagement.LoadSceneMode.Additive);
+            while (op != null && !op.isDone) yield return null;
+            var scene = UnityEngine.SceneManagement.SceneManager.GetSceneByName(CityScene);
+            if (!root) { if (scene.IsValid() && scene.isLoaded) UnityEngine.SceneManagement.SceneManager.UnloadSceneAsync(scene); yield break; }
+            var city = new GameObject("City"); city.transform.SetParent(root.transform, false);
+            if (scene.IsValid()) foreach (var r in scene.GetRootGameObjects()) r.transform.SetParent(city.transform, true);
+            foreach (var t in city.GetComponentsInChildren<Transform>(true)) if (t.gameObject.layer == 0) t.gameObject.layer = Layers.Ground;
+            foreach (var tr in city.GetComponentsInChildren<Terrain>(true)) { tr.gameObject.layer = Layers.Ground; if (!tr.GetComponent<TerrainCollider>()) tr.gameObject.AddComponent<TerrainCollider>().terrainData = tr.terrainData; }
+            foreach (var l in city.GetComponentsInChildren<Light>(true)) if (l.type == LightType.Directional) l.gameObject.SetActive(false);
+            if (scene.IsValid() && scene.isLoaded) UnityEngine.SceneManagement.SceneManager.UnloadSceneAsync(scene);
+            hasTerrain = true; Physics.SyncTransforms();
+            BuildGameplayObjects(quality);
+            AddWeather();
+            ready = true; onReady?.Invoke();
+        }
         GameObject staticRoot;
         bool night; int lights;
         float t;
@@ -26,7 +57,7 @@ namespace ZA
 
         public static World Build(MapDef map, string quality)
         {
-            var w = new World { map = map, night = map.night };
+            var w = new World { map = map, night = map.night }; Current = w;
             w.root = new GameObject("World");
             w.staticRoot = new GameObject("Static"); w.staticRoot.transform.SetParent(w.root.transform, false);
             var S = w.staticRoot.transform;
@@ -34,6 +65,13 @@ namespace ZA
             // Umgebung
             w.BuildEnvironmentVolume();
 
+            // Realistische Stadt aus dem Store-Paket (Dead District): eigene Szene, wird additiv nachgeladen
+            if (map.id == "ruins" && Application.CanStreamedLevelBeLoaded(CityScene) && Game.I != null)
+            {
+                w.ready = false;
+                Game.I.StartCoroutine(w.LoadCity(quality));
+                return w;
+            }
             // Boden
             float gsize = map.size + 90;
             var gt = U.GroundTex(map.ground);
@@ -63,15 +101,24 @@ namespace ZA
             w.AddScenery(S);
             w.AddVegetation(S);
 
-            // Generator, Shop, Kiste
-            w.gen = Models.BuildGenerator(); w.gen.root.transform.SetParent(w.root.transform, false); w.gen.root.transform.position = new Vector3(map.gen.x, 0, map.gen.y);
+            w.BuildGameplayObjects(quality);
+            w.BuildSky();
+            StaticBatchingUtility.Combine(w.staticRoot);
+            return w;
+        }
+
+        /// <summary>Generator, Shop, Kiste, Sonne und Kollisionskörper (für alle Karten gleich)</summary>
+        void BuildGameplayObjects(string quality)
+        {
+            var w = this;
+            w.gen = Models.BuildGenerator(); w.gen.root.transform.SetParent(w.root.transform, false); w.gen.root.transform.position = new Vector3(map.gen.x, GroundY(map.gen.x, map.gen.y), map.gen.y);
             var gl = new GameObject("genlight").AddComponent<Light>(); gl.type = LightType.Point; gl.color = U.C("#00e5ff"); gl.range = 12; gl.transform.SetParent(w.root.transform, false); gl.transform.position = new Vector3(map.gen.x, 2.6f, map.gen.y); HdLight(gl, map.night ? 2500 : 1200);
-            w.shop = Models.BuildShop(); w.shop.transform.SetParent(w.root.transform, false); w.shop.transform.position = new Vector3(map.shop.x, 0, map.shop.y);
+            w.shop = Models.BuildShop(); w.shop.transform.SetParent(w.root.transform, false); w.shop.transform.position = new Vector3(map.shop.x, GroundY(map.shop.x, map.shop.y), map.shop.y);
             w.shop.transform.rotation = Quaternion.Euler(0, Mathf.Atan2(map.shop.x - map.gen.x, map.shop.y - map.gen.y) * Mathf.Rad2Deg, 0);
             if (map.crate.HasValue)
             {
                 var c = map.crate.Value;
-                w.crate = Models.BuildCrate(); w.crate.root.transform.SetParent(w.root.transform, false); w.crate.root.transform.position = new Vector3(c.x, 0, c.y);
+                w.crate = Models.BuildCrate(); w.crate.root.transform.SetParent(w.root.transform, false); w.crate.root.transform.position = new Vector3(c.x, GroundY(c.x, c.y), c.y);
                 w.crate.root.transform.rotation = Quaternion.Euler(0, Mathf.Atan2(map.gen.x - c.x, map.gen.y - c.y) * Mathf.Rad2Deg, 0);
             }
 
@@ -88,9 +135,10 @@ namespace ZA
             // Kollisionskörper aus den gemeinsamen Daten
             var col = new GameObject("Colliders"); col.transform.SetParent(w.root.transform, false);
             foreach (var s in map.solids)
+                if (!w.hasTerrain || s.kind == "generator" || s.kind == "shop" || s.kind == "crate")
             {
                 var g = new GameObject("solid_" + s.kind); g.transform.SetParent(col.transform, false); g.layer = Layers.Solid;
-                g.transform.position = new Vector3((s.minX + s.maxX) / 2, (s.minY + s.maxY) / 2, (s.minZ + s.maxZ) / 2);
+                g.transform.position = new Vector3((s.minX + s.maxX) / 2, (s.minY + s.maxY) / 2 + (w.hasTerrain ? GroundY((s.minX + s.maxX) / 2, (s.minZ + s.maxZ) / 2) : 0), (s.minZ + s.maxZ) / 2);
                 var bc = g.AddComponent<BoxCollider>(); bc.size = new Vector3(s.maxX - s.minX, s.maxY - s.minY, s.maxZ - s.minZ);
             }
             // Kartenrand (unsichtbare Wände)
@@ -101,9 +149,23 @@ namespace ZA
                 g.AddComponent<BoxCollider>().size = new Vector3(sx, 10, sz);
             }
 
-            w.BuildSky();
-            StaticBatchingUtility.Combine(w.staticRoot);
-            return w;
+        }
+
+        /// <summary>Regen, Staub und Asche für die Ruinenstadt</summary>
+        void AddWeather()
+        {
+            var rainGo = new GameObject("rain"); rainGo.transform.SetParent(root.transform, false); rainGo.transform.position = new Vector3(0, 18, 0);
+            var ps = rainGo.AddComponent<ParticleSystem>(); var m = ps.main; m.startLifetime = 1.6f; m.startSpeed = 14; m.startSize = new ParticleSystem.MinMaxCurve(0.02f, 0.04f); m.startColor = new Color(0.8f, 0.85f, 0.9f, 0.35f); m.maxParticles = 4000; m.simulationSpace = ParticleSystemSimulationSpace.World; m.gravityModifier = 1.5f;
+            var em = ps.emission; em.rateOverTime = 1800; var sh = ps.shape; sh.shapeType = ParticleSystemShapeType.Box; sh.scale = new Vector3(70, 1, 70);
+            var r = ps.GetComponent<ParticleSystemRenderer>(); r.renderMode = ParticleSystemRenderMode.Stretch; r.lengthScale = 12; r.velocityScale = 0.05f; r.material = U.UnlitMat(new Color(0.8f, 0.85f, 0.9f, 0.35f), true); r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var col = ps.collision; col.enabled = true; col.type = ParticleSystemCollisionType.World; col.lifetimeLoss = 1; col.quality = ParticleSystemCollisionQuality.Medium;
+            ps.transform.SetParent(Camera.main ? Camera.main.transform : root.transform, true); // Regen folgt der Kamera
+            ps.transform.localPosition = new Vector3(0, 18, 8);
+            var dustGo = new GameObject("dust"); dustGo.transform.SetParent(root.transform, false); dustGo.transform.position = new Vector3(0, 2, 0);
+            var dp = dustGo.AddComponent<ParticleSystem>(); var dm = dp.main; dm.startLifetime = 9; dm.startSpeed = 0.2f; dm.startSize = new ParticleSystem.MinMaxCurve(0.04f, 0.1f); dm.startColor = new Color(0.9f, 0.85f, 0.75f, 0.5f); dm.maxParticles = 600; dm.simulationSpace = ParticleSystemSimulationSpace.World;
+            var de = dp.emission; de.rateOverTime = 60; var ds = dp.shape; ds.shapeType = ParticleSystemShapeType.Box; ds.scale = new Vector3(map.size, 4, map.size);
+            var dn = dp.noise; dn.enabled = true; dn.strength = 0.3f; dn.frequency = 0.3f;
+            var dr = dp.GetComponent<ParticleSystemRenderer>(); var dmat = U.UnlitMat(new Color(0.9f, 0.85f, 0.75f, 0.5f), true); U.SetMainTex(dmat, U.GlowTex()); dr.material = dmat; dr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         void AddObject(MapObj o, Transform S)
@@ -299,7 +361,8 @@ namespace ZA
             fog.enabled.Override(true); fog.albedo.Override(map.fogColor); fog.meanFreePath.Override(Mathf.Max(20f, map.fogFar * 0.55f)); fog.baseHeight.Override(0f); fog.maximumHeight.Override(map.night ? 25f : 60f);
             fog.enableVolumetricFog.Override(true); fog.anisotropy.Override(0.35f); fog.globalLightProbeDimmer.Override(0.8f); fog.depthExtent.Override(80f);
             fog.tint.Override(map.night ? new Color(0.5f, 0.6f, 0.9f) : Color.white);
-            var clouds = prof.Add<UnityEngine.Rendering.HighDefinition.VolumetricClouds>(true); clouds.enable.Override(true); clouds.cloudPreset = map.night ? UnityEngine.Rendering.HighDefinition.VolumetricClouds.CloudPresets.Overcast : UnityEngine.Rendering.HighDefinition.VolumetricClouds.CloudPresets.Cloudy; clouds.shadows.Override(true);
+            if (map.id == "ruins") { fog.meanFreePath.Override(45f); fog.maximumHeight.Override(40f); fog.anisotropy.Override(0.5f); var ca2 = prof.Add<UnityEngine.Rendering.HighDefinition.ColorAdjustments>(true); ca2.saturation.Override(-25f); ca2.contrast.Override(15f); ca2.colorFilter.Override(new Color(0.85f, 0.88f, 0.9f)); }
+            var clouds = prof.Add<UnityEngine.Rendering.HighDefinition.VolumetricClouds>(true); clouds.enable.Override(true); clouds.cloudPreset = map.night || map.id == "ruins" ? UnityEngine.Rendering.HighDefinition.VolumetricClouds.CloudPresets.Stormy : UnityEngine.Rendering.HighDefinition.VolumetricClouds.CloudPresets.Cloudy; clouds.shadows.Override(true);
             var shadows = prof.Add<UnityEngine.Rendering.HighDefinition.HDShadowSettings>(true); shadows.maxShadowDistance.Override(140f); shadows.cascadeShadowSplitCount.Override(4);
             if (map.night) { var ca = prof.Add<UnityEngine.Rendering.HighDefinition.ColorAdjustments>(true); ca.colorFilter.Override(new Color(0.75f, 0.82f, 1f)); ca.postExposure.Override(-0.5f); }
         }
@@ -392,6 +455,7 @@ namespace ZA
 
         public void Update(float dt)
         {
+            if (!ready || gen == null) return; // Stadt-Szene lädt noch
             t += dt;
             gen.fan.Rotate(0, dt * 9 * Mathf.Rad2Deg, 0);
             U.SetEmission(gen.core, U.C("#00e5ff"), 1.0f + Mathf.Sin(t * 3) * 0.4f);
@@ -407,6 +471,6 @@ namespace ZA
             }
         }
 
-        public void Dispose() { if (root) Object.Destroy(root); }
+        public void Dispose() { if (root) Object.Destroy(root); if (Current == this) Current = null; }
     }
 }

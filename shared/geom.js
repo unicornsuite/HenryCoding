@@ -42,7 +42,11 @@ export function buildGrid(map, solids, cell = 1, margin = 0.35) {
   const half = map.size / 2;
   const n = Math.ceil(map.size / cell);
   const blocked = new Uint8Array(n * n);
-  for (let gz = 0; gz < n; gz++) {
+  if (map.mask) {
+    // Vorberechnete Begehbarkeitsmaske (z. B. aus einer Unity-Szene exportiert): Zeilen = z, Zeichen = x, '#' = gesperrt
+    const rows = map.mask.split('\n');
+    for (let gz = 0; gz < n; gz++) { const row = rows[gz] || ''; for (let gx = 0; gx < n; gx++) blocked[gz * n + gx] = row[gx] === '#' ? 1 : 0; }
+  } else for (let gz = 0; gz < n; gz++) {
     for (let gx = 0; gx < n; gx++) {
       const x = -half + (gx + 0.5) * cell, z = -half + (gz + 0.5) * cell;
       for (const b of solids) {

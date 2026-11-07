@@ -105,6 +105,7 @@ namespace ZA
         public void DebugThrowGrenade() { nades = Mathf.Max(nades, 1); ThrowGrenade(); }
         public void DebugMelee() { MeleeAttack(); }
         public void DebugThirdPerson(bool on) { player.SetThirdPerson(on); }
+        public void DebugVm(float yaw, float scale) { player.DebugVm(yaw, scale); }
         public string DebugState() => $"wave={wave} phase={phase} hp={hp} money={money} kills={kills} zombies={ents.zombies.Count} remotes={ents.remotes.Count} weapon={weapon} mag={ammo[weapon].mag} pos={player.Pos} fps={1f / Time.smoothDeltaTime:0}";
 
         void SetupPostProcessing()
@@ -265,7 +266,7 @@ namespace ZA
                     }
                 case "bought": OnBought(m); break;
                 case "crate": OnCrateResult(J.O(m, "item")); break;
-                case "respawn": player.Pos = new Vector3(J.F(m, "x"), J.F(m, "y"), J.F(m, "z")); player.vel = Vector3.zero; ui.Toast("Du bist zurück im Kampf!", "good"); break;
+                case "respawn": player.Pos = new Vector3(J.F(m, "x"), J.F(m, "y") + World.GroundY(J.F(m, "x"), J.F(m, "z")) + 0.1f, J.F(m, "z")); player.vel = Vector3.zero; ui.Toast("Du bist zurück im Kampf!", "good"); break;
                 case "over": OnGameOver(m); break;
                 case "chat": if (J.B(m, "sys")) ui.Chat($"<color=#ffca28>{J.S(m, "text")}</color>"); else ui.Chat($"<color={J.S(m, "color", "#fff")}>{J.S(m, "name")}:</color> {J.S(m, "text")}"); break;
             }
@@ -278,7 +279,8 @@ namespace ZA
             mapDef = D.map[J.S(m, "map", "suburb")]; diffId = J.S(m, "diff", "normal");
             world = World.Build(mapDef, quality);
             ui.BuildMinimapBase(mapDef);
-            var you = J.O(m, "you"); player.Pos = new Vector3(J.F(you, "x"), J.F(you, "y"), J.F(you, "z")); player.vel = Vector3.zero;
+            var you = J.O(m, "you"); player.Pos = new Vector3(J.F(you, "x"), J.F(you, "y") + World.GroundY(J.F(you, "x"), J.F(you, "z")) + 0.1f, J.F(you, "z")); player.vel = Vector3.zero;
+            if (!world.ready) { ui.Toast("Ruinenstadt wird geladen …", "info"); world.onReady = () => { var p = player.Pos; player.Pos = new Vector3(p.x, Mathf.Max(p.y, World.GroundY(p.x, p.z) + 0.1f), p.z); player.vel = Vector3.zero; }; }
             float dx = player.Pos.x - mapDef.gen.x, dz = player.Pos.z - mapDef.gen.y; player.yaw = Mathf.Atan2(-dx, -dz); player.pitch = -0.05f;
             hp = 100; maxHp = 100; armor = 0; state = "alive"; weapon = "pistol"; owned = new List<string> { "pistol" }; ammo.Clear(); upg.Clear(); perks.Clear(); nades = 0; fireCd = 0; player.reloadT = 0; player.switchT = 0; player.spin = 0; player.aim = 0; player.recoilAcc = 0; player.meleeT = 0; player.nadeT = 0; streak = 0; lastKill = -9; crateSpinT = 0; UI.Show(ui.crateUi, false); UI.Show(ui.wavesum, false);
             InitAmmo("pistol");

@@ -273,3 +273,6 @@ body:not(.touch) .touchonly { display: none; }
 #t-melee { right: calc(5vw + 240px); bottom: calc(10vh + 140px); }
 body.touch #gear { justify-content: center; }
 #crateui { position: absolute; top: 40%; left: 50%; transform: translateX(-50%); font-size: 54px; background: rgba(0,0,0,0.7); border: 3px solid var(--accent); border-radius: 16px; padding: 10px 26px; display: none; }
+
+.mapcard.unityonly { opacity: 0.6; filter: grayscale(0.4); }
+.mapcard.unityonly b::after { content: ' · nur Unity-App'; font-size: 11px; color: #ffca28; }

@@ -65,7 +65,7 @@ namespace ZA
                 var ms = r.materials; // Instanzen, damit Tönung/Blinken pro Zombie geht
                 foreach (var m in ms) { if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", m.GetColor("_BaseColor") * tint); z0.mats.Add(m); }
             }
-            if (cfg.explode && z0.mats.Count > 0) z0.glowMat = z0.mats[0];
+            if (cfg.explode > 0 && z0.mats.Count > 0) z0.glowMat = z0.mats[0];
             // Trefferboxen an Knochen
             Transform head = z0.anim ? z0.anim.GetBoneTransform(HumanBodyBones.Head) : null, chest = z0.anim ? (z0.anim.GetBoneTransform(HumanBodyBones.Chest) ?? z0.anim.GetBoneTransform(HumanBodyBones.Spine)) : null, hips = z0.anim ? z0.anim.GetBoneTransform(HumanBodyBones.Hips) : null;
             z0.headBone = head;
@@ -164,7 +164,7 @@ namespace ZA
                 z.walk += (Mathf.Clamp01(spd / (z.cfg.speed * 0.8f)) - z.walk) * Mathf.Min(1, dt * 8);
                 float y = 0;
                 if (z.rise > 0) { z.rise -= dt; y = -2.2f * s * Mathf.Max(0, z.rise); if (Random.value < 0.3f) fx.Particle(new Vector3(z.x + Random.value - 0.5f, 0.05f, z.z + Random.value - 0.5f), new Vector3(0, 2, 0), U.C("#4e342e"), 0.12f, 0.6f); }
-                z.go.transform.position = new Vector3(z.x, y, z.z); z.go.transform.rotation = Quaternion.Euler(0, z.rot * Mathf.Rad2Deg, 0);
+                z.go.transform.position = new Vector3(z.x, y + World.GroundY(z.x, z.z), z.z); z.go.transform.rotation = Quaternion.Euler(0, z.rot * Mathf.Rad2Deg, 0);
                 z.phase += dt * z.walk * (z.type == "runner" ? 15 : 8) / Mathf.Sqrt(s);
                 float attack = 0; if (z.atkT > 0) { z.atkT -= dt; attack = 1 - Mathf.Max(0, z.atkT) / 0.5f; }
                 if (z.hp < z.lastHp - 3) z.flinch = 1; z.lastHp = z.hp; z.flinch = Mathf.Max(0, z.flinch - dt * 4);
@@ -199,7 +199,7 @@ namespace ZA
             z.walk += (Mathf.Clamp01(spd / (z.cfg.speed * 0.8f)) - z.walk) * Mathf.Min(1, dt * 8);
             float y = 0;
             if (z.rise > 0) { z.rise -= dt; y = -2.2f * s * Mathf.Max(0, z.rise); if (Random.value < 0.3f) fx.Particle(new Vector3(z.x + Random.value - 0.5f, 0.05f, z.z + Random.value - 0.5f), new Vector3(0, 2, 0), U.C("#4e342e"), 0.12f, 0.6f); }
-            z.go.transform.position = new Vector3(z.x, y, z.z); z.go.transform.rotation = Quaternion.Euler(0, z.rot * Mathf.Rad2Deg, 0);
+            z.go.transform.position = new Vector3(z.x, y + World.GroundY(z.x, z.z), z.z); z.go.transform.rotation = Quaternion.Euler(0, z.rot * Mathf.Rad2Deg, 0);
             if (z.anim)
             {
                 z.anim.SetFloat("Speed", Mathf.Min(4.5f, spd / Mathf.Max(0.5f, s)));
@@ -263,7 +263,7 @@ namespace ZA
         public Turret CreateTurret(int id, string type, float x, float z, float yaw, int owner)
         {
             var cfg = D.turret[type]; var parts = Models.BuildTurret(type, cfg.color);
-            parts.root.transform.SetParent(root, false); parts.root.transform.position = new Vector3(x, 0, z); parts.head.localRotation = Quaternion.Euler(0, yaw * Mathf.Rad2Deg, 0);
+            parts.root.transform.SetParent(root, false); parts.root.transform.position = new Vector3(x, World.GroundY(x, z), z); parts.head.localRotation = Quaternion.Euler(0, yaw * Mathf.Rad2Deg, 0);
             var col = parts.root.AddComponent<CapsuleCollider>(); col.radius = 0.55f; col.height = 2; col.center = new Vector3(0, 1, 0); parts.root.layer = Layers.Solid;
             var t = new Turret { id = id, type = type, parts = parts, x = x, z = z, yaw = yaw, tyaw = yaw, owner = owner, col = col };
             t.bar = HealthBar.Create(parts.root.transform, 1.0f, type == "tesla" ? 2.7f : 2.0f); t.bar.gameObject.SetActive(false);
@@ -285,7 +285,7 @@ namespace ZA
         // ------------------------------------------------------------------ Barrikaden
         public Barricade CreateBarricade(int id, float x, float z, int rot)
         {
-            var go = Models.BuildBarricade(); go.transform.SetParent(root, false); go.transform.position = new Vector3(x, 0, z); go.transform.rotation = Quaternion.Euler(0, rot == 1 ? 90 : 0, 0);
+            var go = Models.BuildBarricade(); go.transform.SetParent(root, false); go.transform.position = new Vector3(x, World.GroundY(x, z), z); go.transform.rotation = Quaternion.Euler(0, rot == 1 ? 90 : 0, 0);
             go.layer = Layers.Barricade; var col = go.AddComponent<BoxCollider>(); col.size = new Vector3(2.6f, 1.2f, 0.5f); col.center = new Vector3(0, 0.6f, 0);
             foreach (var r in go.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = highQuality ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
             var b = new Barricade { id = id, go = go, x = x, z = z, rot = rot, col = col };
@@ -305,7 +305,7 @@ namespace ZA
         // ------------------------------------------------------------------ Power-ups
         public Pickup CreatePickup(int id, string kind, float x, float z)
         {
-            var cfg = D.powerup[kind]; var parts = Models.BuildPickup(cfg); parts.root.transform.SetParent(root, false); parts.root.transform.position = new Vector3(x, 0, z);
+            var cfg = D.powerup[kind]; var parts = Models.BuildPickup(cfg); parts.root.transform.SetParent(root, false); parts.root.transform.position = new Vector3(x, World.GroundY(x, z), z);
             var p = new Pickup { id = id, kind = kind, cfg = cfg, parts = parts, x = x, z = z, seed = Random.value * 6 };
             pickups[id] = p; fx.Burst(new Vector3(x, 1, z), U.C(cfg.color), 12, 3, 0.1f, 0.8f, 2); return p;
         }

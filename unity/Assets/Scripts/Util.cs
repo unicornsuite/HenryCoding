@@ -6,7 +6,7 @@ namespace ZA
 {
     public static class Layers
     {
-        public const int World = 0, ViewModel = 8, Hitbox = 9, Solid = 10, Barricade = 11, Ground = 12;
+        public const int World = 0, ViewModel = 8, Hitbox = 9, Solid = 10, Barricade = 11, Ground = 12, SelfFP = 13; // SelfFP: eigene Figur, in der Egoperspektive von der Kamera ausgeblendet (wirft aber Schatten)
         public const int ShootMask = (1 << Solid) | (1 << Hitbox) | (1 << Barricade) | (1 << Ground);
         public const int PlaceMask = (1 << Solid) | (1 << Barricade) | (1 << Ground);
     }
