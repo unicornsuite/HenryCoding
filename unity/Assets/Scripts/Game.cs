@@ -111,10 +111,17 @@ namespace ZA
         {
             var go = new GameObject("PostFX"); var vol = go.AddComponent<UnityEngine.Rendering.Volume>(); vol.isGlobal = true; vol.priority = 1;
             var prof = ScriptableObject.CreateInstance<UnityEngine.Rendering.VolumeProfile>(); vol.profile = prof;
-            var bloom = prof.Add<UnityEngine.Rendering.Universal.Bloom>(true); bloom.intensity.Override(0.7f); bloom.threshold.Override(1.0f); bloom.scatter.Override(0.6f);
-            var vig = prof.Add<UnityEngine.Rendering.Universal.Vignette>(true); vig.intensity.Override(0.25f); vig.smoothness.Override(0.4f);
-            var ca = prof.Add<UnityEngine.Rendering.Universal.ColorAdjustments>(true); ca.contrast.Override(8f); ca.saturation.Override(12f); ca.postExposure.Override(0.15f);
-            var tm = prof.Add<UnityEngine.Rendering.Universal.Tonemapping>(true); tm.mode.Override(UnityEngine.Rendering.Universal.TonemappingMode.ACES);
+            var ex = prof.Add<UnityEngine.Rendering.HighDefinition.Exposure>(true); ex.mode.Override(UnityEngine.Rendering.HighDefinition.ExposureMode.Automatic); ex.limitMin.Override(-2f); ex.limitMax.Override(14f); ex.compensation.Override(0.3f); ex.adaptationSpeedDarkToLight.Override(4f); ex.adaptationSpeedLightToDark.Override(2f);
+            var bloom = prof.Add<UnityEngine.Rendering.HighDefinition.Bloom>(true); bloom.intensity.Override(0.35f); bloom.scatter.Override(0.65f); bloom.threshold.Override(0.9f);
+            var vig = prof.Add<UnityEngine.Rendering.HighDefinition.Vignette>(true); vig.intensity.Override(0.3f); vig.smoothness.Override(0.4f);
+            var ca = prof.Add<UnityEngine.Rendering.HighDefinition.ColorAdjustments>(true); ca.contrast.Override(12f); ca.saturation.Override(-5f);
+            var tm = prof.Add<UnityEngine.Rendering.HighDefinition.Tonemapping>(true); tm.mode.Override(UnityEngine.Rendering.HighDefinition.TonemappingMode.ACES);
+            var ao = prof.Add<UnityEngine.Rendering.HighDefinition.ScreenSpaceAmbientOcclusion>(true); ao.intensity.Override(1.2f); ao.radius.Override(1.5f);
+            var ssr = prof.Add<UnityEngine.Rendering.HighDefinition.ScreenSpaceReflection>(true); ssr.enabled.Override(true);
+            var cs = prof.Add<UnityEngine.Rendering.HighDefinition.ContactShadows>(true); cs.enable.Override(true);
+            var mb = prof.Add<UnityEngine.Rendering.HighDefinition.MotionBlur>(true); mb.intensity.Override(0.3f);
+            var fg = prof.Add<UnityEngine.Rendering.HighDefinition.FilmGrain>(true); fg.intensity.Override(0.2f);
+            var ca2 = prof.Add<UnityEngine.Rendering.HighDefinition.ChromaticAberration>(true); ca2.intensity.Override(0.08f);
         }
 
         void LoadSettings()
@@ -181,7 +188,7 @@ namespace ZA
             else
             { // Game Over: Kamerafahrt
                 cam.transform.position = new Vector3(mapDef.gen.x + Mathf.Sin(T * 0.15f) * 22, 12, mapDef.gen.y + Mathf.Cos(T * 0.15f) * 22);
-                cam.transform.LookAt(new Vector3(mapDef.gen.x, 1, mapDef.gen.y)); player.vmRoot.gameObject.SetActive(false);
+                cam.transform.LookAt(new Vector3(mapDef.gen.x, 1, mapDef.gen.y)); player.SetVmVisible(false);
             }
             ents.UpdateRemotes(dt); ents.UpdateZombies(dt); ents.UpdateTurrets(dt); ents.UpdatePickups(dt); ents.UpdateBarricades(dt);
             world.Update(dt); fx.Update(dt);
@@ -281,7 +288,7 @@ namespace ZA
                 flashlight = fl.AddComponent<Light>(); flashlight.type = LightType.Spot; flashlight.color = U.C("#fff3d6"); flashlight.intensity = 60; flashlight.range = 40; flashlight.spotAngle = 55; flashlight.innerSpotAngle = 30; flashlight.shadows = quality == "high" ? LightShadows.Soft : LightShadows.None; flashlight.cullingMask = ~(1 << Layers.ViewModel); flashOn = true;
             }
             inGame = true; paused = false;
-            player.BuildViewmodel("pistol", 0, myColor); player.vmRoot.gameObject.SetActive(true);
+            player.BuildViewmodel("pistol", 0, myColor); player.SetVmVisible(true);
             player.BuildSelf(myColor); player.SetThirdPerson(PlayerPrefs.GetInt("thirdperson", 0) == 1);
             UI.Show(ui.lobby, false); UI.Show(ui.over, false); UI.Show(ui.hud, true);
             ui.Announce(mapDef.name.ToUpper(), "Verteidige den Generator!  [B] Shop", 4);
@@ -536,7 +543,7 @@ namespace ZA
                         if (cfg.id == "ammo") foreach (var id in owned) InitAmmo(id);
                         break;
                     }
-                case "zs": { if (ents.zombies.TryGetValue(J.I(e, "id"), out var zz)) { zz.atkT = 0.5f; fx.Spit(new Vector3(zz.x, 1.6f * zz.cfg.scale, zz.z), new Vector3(J.F(e, "x"), 0.1f, J.F(e, "z")), 0.7f); sfx.Play("spit", zz.go.transform.position); } break; }
+                case "zs": { if (ents.zombies.TryGetValue(J.I(e, "id"), out var zz)) { zz.atkT = 0.5f; zz.spitTrig = 1; fx.Spit(new Vector3(zz.x, 1.6f * zz.cfg.scale, zz.z), new Vector3(J.F(e, "x"), 0.1f, J.F(e, "z")), 0.7f); sfx.Play("spit", zz.go.transform.position); } break; }
                 case "zsl": fx.AcidPool(new Vector3(J.F(e, "x"), 0, J.F(e, "z")), 2); break;
                 case "nd": if (J.I(e, "by") != myId) { var o = J.A(e, "o"); var v = J.A(e, "v"); LaunchGrenade(new Vector3(J.F(o, 0), J.F(o, 1), J.F(o, 2)), new Vector3(J.F(v, 0), J.F(v, 1), J.F(v, 2)), false); } break;
                 case "cs": if (world?.crate != null) { world.crateSpin = D.crateSpin; sfx.Play("crate", world.crate.root.transform.position); } break;
@@ -652,7 +659,7 @@ namespace ZA
             else if (!CanShopLocal()) reason = "Nur nahe am Shop während Wellen";
             placing.valid = reason == ""; placing.reason = reason;
             var col = placing.valid ? new Color(0.3f, 0.69f, 0.31f, 0.5f) : new Color(0.96f, 0.26f, 0.21f, 0.5f);
-            foreach (var m in placing.mats) m.SetColor("_BaseColor", col);
+            foreach (var m in placing.mats) U.SetColor(m, col);
         }
         void TryPlace()
         {
@@ -759,7 +766,7 @@ namespace ZA
             else if (state == "down") ui.Downed($"{(ents.remotes.Count > 0 ? $"Ausbluten in <b>{Mathf.CeilToInt(downT)}s</b> – warte auf einen Mitspieler!" : "Selbstwiederbelebung läuft…")}{(rev > 0 ? $"\nWiederbelebung: {Mathf.RoundToInt(rev * 100)}%" : "")}");
             else ui.Downed(null);
             bool scoped = weapon == "sniper" && player.aim > 0.9f && alive;
-            UI.Show(ui.scope, scoped); player.vmRoot.gameObject.SetActive(alive && !scoped && !player.thirdPerson);
+            UI.Show(ui.scope, scoped); player.SetVmVisible(alive && !scoped && !player.thirdPerson);
             sfx.listener = cam.transform;
             // Interaktionen
             string promptTxt = null; float? prog = null;

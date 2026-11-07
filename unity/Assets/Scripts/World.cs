@@ -32,17 +32,12 @@ namespace ZA
             var S = w.staticRoot.transform;
 
             // Umgebung
-            RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Linear; RenderSettings.fogColor = map.fogColor; RenderSettings.fogStartDistance = map.fogNear; RenderSettings.fogEndDistance = map.fogFar;
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-            var sky = U.C(map.sky); var ground = U.C(map.hemiGround);
-            RenderSettings.ambientSkyColor = sky * (map.ambient * 0.55f); RenderSettings.ambientEquatorColor = Color.Lerp(sky, ground, 0.5f) * (map.ambient * 0.45f); RenderSettings.ambientGroundColor = ground * (map.ambient * 0.35f);
-            if (!map.night) { RenderSettings.ambientSkyColor += Color.white * 0.12f; RenderSettings.ambientEquatorColor += Color.white * 0.1f; }
-            RenderSettings.skybox = null;
+            w.BuildEnvironmentVolume();
 
             // Boden
             float gsize = map.size + 90;
             var gt = U.GroundTex(map.ground);
-            var gm = U.NewMat(Color.white, 0, 0.12f, gt, null, 0, U.StudNormal(), 0.6f); gm.mainTextureScale = new Vector2(gsize / 4, gsize / 4); gm.SetTextureScale("_BaseMap", new Vector2(gsize / 4, gsize / 4)); gm.SetTextureScale("_BumpMap", new Vector2(gsize / 4, gsize / 4));
+            var gm = U.NewMat(Color.white, 0, 0.12f, gt, null, 0, U.StudNormal(), 0.6f); gm.SetTextureScale("_BaseColorMap", new Vector2(gsize / 4, gsize / 4)); gm.SetTextureScale("_NormalMap", new Vector2(gsize / 4, gsize / 4));
             var groundGo = U.Prim(PrimitiveType.Plane, S, gm, Vector3.zero, new Vector3(gsize / 10, 1, gsize / 10), null, true, true, Layers.Ground);
             groundGo.name = "ground"; groundGo.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             // Bodenmarkierungen
@@ -70,7 +65,7 @@ namespace ZA
 
             // Generator, Shop, Kiste
             w.gen = Models.BuildGenerator(); w.gen.root.transform.SetParent(w.root.transform, false); w.gen.root.transform.position = new Vector3(map.gen.x, 0, map.gen.y);
-            var gl = new GameObject("genlight").AddComponent<Light>(); gl.type = LightType.Point; gl.color = U.C("#00e5ff"); gl.intensity = map.night ? 6 : 2; gl.range = 12; gl.transform.SetParent(w.root.transform, false); gl.transform.position = new Vector3(map.gen.x, 2.6f, map.gen.y);
+            var gl = new GameObject("genlight").AddComponent<Light>(); gl.type = LightType.Point; gl.color = U.C("#00e5ff"); gl.range = 12; gl.transform.SetParent(w.root.transform, false); gl.transform.position = new Vector3(map.gen.x, 2.6f, map.gen.y); HdLight(gl, map.night ? 2500 : 1200);
             w.shop = Models.BuildShop(); w.shop.transform.SetParent(w.root.transform, false); w.shop.transform.position = new Vector3(map.shop.x, 0, map.shop.y);
             w.shop.transform.rotation = Quaternion.Euler(0, Mathf.Atan2(map.shop.x - map.gen.x, map.shop.y - map.gen.y) * Mathf.Rad2Deg, 0);
             if (map.crate.HasValue)
@@ -82,9 +77,13 @@ namespace ZA
 
             // Sonne
             var sunGo = new GameObject("sun"); sunGo.transform.SetParent(w.root.transform, false);
-            w.sun = sunGo.AddComponent<Light>(); w.sun.type = LightType.Directional; w.sun.color = map.sunColor; w.sun.intensity = map.sunIntensity * (map.night ? 0.5f : 0.9f);
-            w.sun.shadows = quality == "low" ? LightShadows.None : LightShadows.Soft; w.sun.shadowStrength = 0.85f; w.sun.shadowBias = 0.03f; w.sun.shadowNormalBias = 0.5f;
+            w.sun = sunGo.AddComponent<Light>(); w.sun.type = LightType.Directional; w.sun.color = map.sunColor;
+            w.sun.shadows = quality == "low" ? LightShadows.None : LightShadows.Soft;
             sunGo.transform.rotation = Quaternion.LookRotation(-map.sunPos.normalized);
+            var sunHd = sunGo.AddComponent<UnityEngine.Rendering.HighDefinition.HDAdditionalLightData>();
+            sunHd.SetIntensity(map.night ? 0.6f * map.sunIntensity : 25000f * map.sunIntensity / 2.2f, UnityEngine.Rendering.LightUnit.Lux);
+            sunHd.angularDiameter = 1.2f; sunHd.EnableShadows(quality != "low"); sunHd.SetShadowResolution(quality == "high" ? 4096 : 2048); sunHd.shadowDimmer = 0.9f; sunHd.volumetricDimmer = 1f; sunHd.affectsVolumetric = true;
+            if (map.night) w.sun.color = new Color(0.55f, 0.65f, 1f);
 
             // Kollisionskörper aus den gemeinsamen Daten
             var col = new GameObject("Colliders"); col.transform.SetParent(w.root.transform, false);
@@ -244,7 +243,7 @@ namespace ZA
                         var glow = U.Mat("#fff59d", 0, 0.5f, null, "#ffd54f", night ? 2.5f : 0.4f);
                         if (o.kind == "lamp") { U.Box(S, U.Mat(c), x + 0.4f, h, z, 0.9f, 0.12f, 0.15f); U.Box(S, glow, x + 0.75f, h - 0.1f, z, 0.35f, 0.15f, 0.3f); }
                         else { U.Box(S, glow, x, h + 0.2f, z, 0.4f, 0.45f, 0.4f); U.Box(S, U.Mat(c), x, h + 0.45f, z, 0.5f, 0.08f, 0.5f); }
-                        if (night && lights < 8) { lights++; var pl = new GameObject("lamplight").AddComponent<Light>(); pl.type = LightType.Point; pl.color = U.C("#ffcc66"); pl.intensity = 5; pl.range = 14; pl.transform.SetParent(root.transform, false); pl.transform.position = new Vector3(x + (o.kind == "lamp" ? 0.75f : 0), h + 0.1f, z); lampLights.Add(pl); }
+                        if (night && lights < 8) { lights++; var pl = new GameObject("lamplight").AddComponent<Light>(); pl.type = LightType.Point; pl.color = U.C("#ffcc66"); pl.range = 14; pl.transform.SetParent(root.transform, false); pl.transform.position = new Vector3(x + (o.kind == "lamp" ? 0.75f : 0), h + 0.1f, z); HdLight(pl, 1800); lampLights.Add(pl); }
                         break;
                     }
                 case "dumpster": U.Box(S, U.Mat(c, 0.4f, 0.5f), x, h / 2, z, w, h, d); U.Box(S, U.NewMat(U.Shade(U.C(c), 0.6f)), x, h + 0.05f, z, w + 0.1f, 0.1f, d + 0.1f); break;
@@ -287,6 +286,23 @@ namespace ZA
         }
 
         readonly List<Light> lampLights = new List<Light>();
+        static void HdLight(Light l, float lumen) { var hd = l.gameObject.AddComponent<UnityEngine.Rendering.HighDefinition.HDAdditionalLightData>(); hd.SetIntensity(lumen, UnityEngine.Rendering.LightUnit.Lumen); hd.affectsVolumetric = true; }
+        /// <summary>Himmel, Nebel und Lichtstimmung der Karte als HDRP-Volume</summary>
+        void BuildEnvironmentVolume()
+        {
+            var go = new GameObject("Environment"); go.transform.SetParent(root.transform, false);
+            var vol = go.AddComponent<UnityEngine.Rendering.Volume>(); vol.isGlobal = true; vol.priority = 5;
+            var prof = ScriptableObject.CreateInstance<UnityEngine.Rendering.VolumeProfile>(); vol.profile = prof;
+            var env = prof.Add<UnityEngine.Rendering.HighDefinition.VisualEnvironment>(true); env.skyType.Override((int)UnityEngine.Rendering.HighDefinition.SkyType.PhysicallyBased); env.skyAmbientMode.Override(UnityEngine.Rendering.HighDefinition.SkyAmbientMode.Dynamic);
+            var sky = prof.Add<UnityEngine.Rendering.HighDefinition.PhysicallyBasedSky>(true); sky.exposure.Override(0f); sky.multiplier.Override(1f);
+            var fog = prof.Add<UnityEngine.Rendering.HighDefinition.Fog>(true);
+            fog.enabled.Override(true); fog.albedo.Override(map.fogColor); fog.meanFreePath.Override(Mathf.Max(20f, map.fogFar * 0.55f)); fog.baseHeight.Override(0f); fog.maximumHeight.Override(map.night ? 25f : 60f);
+            fog.enableVolumetricFog.Override(true); fog.anisotropy.Override(0.35f); fog.globalLightProbeDimmer.Override(0.8f); fog.depthExtent.Override(80f);
+            fog.tint.Override(map.night ? new Color(0.5f, 0.6f, 0.9f) : Color.white);
+            var clouds = prof.Add<UnityEngine.Rendering.HighDefinition.VolumetricClouds>(true); clouds.enable.Override(true); clouds.cloudPreset = map.night ? UnityEngine.Rendering.HighDefinition.VolumetricClouds.CloudPresets.Overcast : UnityEngine.Rendering.HighDefinition.VolumetricClouds.CloudPresets.Cloudy; clouds.shadows.Override(true);
+            var shadows = prof.Add<UnityEngine.Rendering.HighDefinition.HDShadowSettings>(true); shadows.maxShadowDistance.Override(140f); shadows.cascadeShadowSplitCount.Override(4);
+            if (map.night) { var ca = prof.Add<UnityEngine.Rendering.HighDefinition.ColorAdjustments>(true); ca.colorFilter.Override(new Color(0.75f, 0.82f, 1f)); ca.postExposure.Override(-0.5f); }
+        }
         /// <summary>Gras, Blumen, Büsche und Steine auf freien Flächen</summary>
         void AddVegetation(Transform S)
         {
@@ -340,8 +356,6 @@ namespace ZA
             var cam = Camera.main; if (cam) { cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = map.fogColor; }
             var extras = new GameObject("sky"); extras.transform.SetParent(root.transform, false);
             // Himmelskuppel (innen sichtbar): große Kugel mit Verlauf über Scheitelfarben nicht nötig – zwei Farben über Nebel
-            var dome = U.Prim(PrimitiveType.Sphere, extras.transform, U.UnlitMat(U.C(map.sky) * (night ? 0.6f : 0.75f)), new Vector3(0, -40, 0), Vector3.one * -900, null, false, false);
-            dome.GetComponent<Renderer>().receiveShadows = false;
             // Sonne / Mond
             var sp = map.sunPos.normalized * 380;
             var disc = U.Prim(PrimitiveType.Quad, extras.transform, U.UnlitMat(U.C(night ? "#e8eaf6" : "#fff8e1")), sp, Vector3.one * (night ? 28 : 40), null, false, false);
@@ -364,13 +378,13 @@ namespace ZA
                 var fe = fps.emission; fe.rateOverTime = 10; var fs = fps.shape; fs.shapeType = ParticleSystemShapeType.Box; fs.scale = new Vector3(map.size, 0.5f, map.size);
                 var fcol = fps.colorOverLifetime; fcol.enabled = true; var grad = new Gradient(); grad.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) }, new[] { new GradientAlphaKey(0, 0), new GradientAlphaKey(1, 0.2f), new GradientAlphaKey(1, 0.8f), new GradientAlphaKey(0, 1) }); fcol.color = grad;
                 var frot = fps.rotationOverLifetime; frot.enabled = true; frot.z = 0.05f;
-                var fr = fps.GetComponent<ParticleSystemRenderer>(); var fogMat = U.UnlitMat(new Color(1, 1, 1, 0.08f), true); fogMat.SetTexture("_BaseMap", U.GlowTex()); fogMat.mainTexture = U.GlowTex(); fr.material = fogMat; fr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; fr.sortingFudge = 10;
+                var fr = fps.GetComponent<ParticleSystemRenderer>(); var fogMat = U.UnlitMat(new Color(1, 1, 1, 0.08f), true); U.SetMainTex(fogMat, U.GlowTex()); fr.material = fogMat; fr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; fr.sortingFudge = 10;
                 var ffGo = new GameObject("fireflies"); ffGo.transform.SetParent(root.transform, false); ffGo.transform.position = new Vector3(0, 1.5f, 0);
                 var ff = ffGo.AddComponent<ParticleSystem>(); var ffm = ff.main; ffm.startLifetime = 6; ffm.startSpeed = 0.4f; ffm.startSize = 0.12f; ffm.startColor = new Color(0.8f, 1f, 0.4f, 1); ffm.maxParticles = 120; ffm.simulationSpace = ParticleSystemSimulationSpace.World;
                 var ffe = ff.emission; ffe.rateOverTime = 15; var ffs = ff.shape; ffs.shapeType = ParticleSystemShapeType.Box; ffs.scale = new Vector3(map.size, 2f, map.size);
                 var ffn = ff.noise; ffn.enabled = true; ffn.strength = 0.6f; ffn.frequency = 0.4f;
                 var ffsz = ff.sizeOverLifetime; ffsz.enabled = true; ffsz.size = new ParticleSystem.MinMaxCurve(1, new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.2f, 1), new Keyframe(0.5f, 0.3f), new Keyframe(0.7f, 1), new Keyframe(1, 0)));
-                var ffr = ff.GetComponent<ParticleSystemRenderer>(); var ffMat = U.UnlitMat(new Color(0.8f, 1f, 0.4f, 1), false, true); ffMat.SetTexture("_BaseMap", U.GlowTex()); ffMat.mainTexture = U.GlowTex(); ffr.material = ffMat; ffr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                var ffr = ff.GetComponent<ParticleSystemRenderer>(); var ffMat = U.UnlitMat(new Color(0.8f, 1f, 0.4f, 1), false, true); U.SetMainTex(ffMat, U.GlowTex()); ffr.material = ffMat; ffr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 var sm = U.UnlitMat(Color.white);
                 for (int i = 0; i < 300; i++) { var v = new Vector3(r() - 0.5f, r() * 0.9f + 0.1f, r() - 0.5f).normalized * 420; var st = U.Prim(PrimitiveType.Quad, extras.transform, sm, v, Vector3.one * (1.2f + r() * 1.5f), null, false, false).transform; st.LookAt(Vector3.zero); st.Rotate(0, 180, 0); }
             }
@@ -383,12 +397,12 @@ namespace ZA
             U.SetEmission(gen.core, U.C("#00e5ff"), 1.0f + Mathf.Sin(t * 3) * 0.4f);
             for (int i = 0; i < gen.lamps.Count; i++) U.SetEmission(gen.lamps[i], U.C("#ff1744"), Mathf.Sin(t * 5 + i * 1.57f) > 0 ? 2 : 0.2f);
             foreach (var c in clouds) { var p = c.position; p.x += dt * 2; if (p.x > 220) p.x = -220; c.position = p; }
-            for (int i = 0; i < lampLights.Count; i++) lampLights[i].intensity = 5 + Mathf.PerlinNoise(t * 6 + i * 3.1f, i) * 2.5f - 1.2f; // Flackern
+            for (int i = 0; i < lampLights.Count; i++) lampLights[i].GetComponent<UnityEngine.Rendering.HighDefinition.HDAdditionalLightData>().SetIntensity(1800 + (Mathf.PerlinNoise(t * 6 + i * 3.1f, i) - 0.5f) * 900, UnityEngine.Rendering.LightUnit.Lumen); // Flackern
             if (crate != null)
             {
                 crateSpin = Mathf.Max(0, crateSpin - dt); float open = crateSpin > 0 ? 1 : 0;
                 var e = crate.lid.localEulerAngles; float cur = e.x > 180 ? e.x - 360 : e.x; cur = Mathf.Lerp(cur, open * -109f, Mathf.Min(1, dt * 6)); crate.lid.localEulerAngles = new Vector3(cur, 0, 0);
-                var col = crate.glow.GetColor("_BaseColor"); col.a = Mathf.Lerp(col.a, open * 0.55f, Mathf.Min(1, dt * 6)); crate.glow.SetColor("_BaseColor", col);
+                var col = U.GetColor(crate.glow); col.a = Mathf.Lerp(col.a, open * 0.55f, Mathf.Min(1, dt * 6)); U.SetColor(crate.glow, col);
                 crate.sign.localPosition = new Vector3(0, 1.7f + Mathf.Sin(t * 2.5f) * 0.08f + open * 0.6f, 0); crate.sign.Rotate(0, dt * (open > 0 ? 9 : 1.2f) * Mathf.Rad2Deg, 0);
             }
         }

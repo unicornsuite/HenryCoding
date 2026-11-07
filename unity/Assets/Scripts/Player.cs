@@ -1,7 +1,6 @@
 // Lokaler Spieler: Bewegung (CharacterController), Kamera, Waffe in der Hand (Viewmodel)
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Rendering.Universal;
 
 namespace ZA
 {
@@ -16,6 +15,11 @@ namespace ZA
         // Third-Person: eigene Figur + Schulterkamera
         public bool thirdPerson; public CharRig self; Models.GunParts selfGun; string selfGunType = ""; float selfPhase, selfMelee; string selfColor = "#1e88e5";
         public float camDist = 4.2f;
+        // gekauftes Waffenmodell mit Händen und Animator
+        GameObject realGun; Animator realAnim; Transform realMuzzle; string realState = ""; public bool realActive; public bool moving;
+        static readonly string[] RealStates = { "Idle", "Move", "Reload", "Fire", "EmptyReload", "FastMove", "ZoomIdle", "ZoomMove", "ZoomFire", "MeleeAttack", "Crouch", "ZoomCrouch", "Jump", "Select", "PutAway", "DryFire", "AltToAndFrom", "AltFire", "AltZoomFire", "ReloadLoop", "EndReload", "AlternateTo", "AlternateFrom", "GrenadeThrow" };
+        public Vector3 realOffset = new Vector3(0, 0, 0); public float realScale = 1f;
+        const float VmShrink = 0.5f; // Viewmodel näher an die Kamera skaliert
         static GameData D => GameData.I;
         public float frameLookDX;
         readonly Material flashMat;
@@ -26,15 +30,10 @@ namespace ZA
             go = new GameObject("Player");
             cc = go.AddComponent<CharacterController>(); cc.radius = 0.38f; cc.height = 1.85f; cc.center = new Vector3(0, 0.925f, 0); cc.stepOffset = 0.5f; cc.slopeLimit = 50; cc.skinWidth = 0.03f; cc.minMoveDistance = 0;
             go.layer = Layers.World;
-            // Overlay-Kamera für die Waffe in der Hand (eigener FOV, kein Durchdringen von Wänden)
-            var vmGo = new GameObject("ViewModelCamera"); vmGo.transform.SetParent(cam.transform, false);
-            vmCam = vmGo.AddComponent<Camera>(); vmCam.cullingMask = 1 << Layers.ViewModel; vmCam.fieldOfView = 60; vmCam.nearClipPlane = 0.01f; vmCam.farClipPlane = 10; vmCam.clearFlags = CameraClearFlags.Depth;
-            var vmData = vmGo.AddComponent<UniversalAdditionalCameraData>(); vmData.renderType = CameraRenderType.Overlay; vmData.renderShadows = false; vmData.renderPostProcessing = false;
-            var mainData = cam.GetComponent<UniversalAdditionalCameraData>() ?? cam.gameObject.AddComponent<UniversalAdditionalCameraData>();
-            mainData.cameraStack.Add(vmCam);
-            cam.cullingMask &= ~(1 << Layers.ViewModel);
-            vmRoot = new GameObject("vm").transform; vmRoot.SetParent(vmGo.transform, false); vmRoot.localRotation = Quaternion.Euler(0, 180, 0); // Waffen zeigen nach -Z
-            flashMat = U.UnlitMat(new Color(1, 0.82f, 0.5f, 1), false, true); flashMat.SetTexture("_BaseMap", U.GlowTex()); flashMat.mainTexture = U.GlowTex();
+            // HDRP kennt keine Overlay-Kameras: Waffe hängt direkt an der Hauptkamera, verkleinert und nah dran (kaum Durchdringen von Wänden)
+            vmCam = cam; cam.nearClipPlane = 0.02f;
+            vmRoot = new GameObject("vm").transform; vmRoot.SetParent(cam.transform, false); vmRoot.localRotation = Quaternion.Euler(0, 180, 0); vmRoot.localScale = Vector3.one * VmShrink; // Waffen zeigen nach -Z
+            flashMat = U.UnlitMat(new Color(1, 0.82f, 0.5f, 1), false, true); U.SetMainTex(flashMat, U.GlowTex());
         }
 
         public Vector3 Pos { get => go.transform.position; set { cc.enabled = false; go.transform.position = value; cc.enabled = true; } }
@@ -54,7 +53,7 @@ namespace ZA
             if (self == null) return;
             foreach (var r in self.root.GetComponentsInChildren<Renderer>(true)) r.shadowCastingMode = thirdPerson ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
         }
-        public void SetThirdPerson(bool on) { thirdPerson = on; ApplySelfVisibility(); vmRoot.gameObject.SetActive(!on); }
+        public void SetThirdPerson(bool on) { thirdPerson = on; ApplySelfVisibility(); SetVmVisible(!on); }
         /// <summary>Mündung der Waffe der eigenen Figur (für Leuchtspuren in Third-Person)</summary>
         public Vector3 SelfMuzzle() => selfGun != null ? selfGun.muzzle.position : cam.transform.position + cam.transform.forward * 0.8f;
 
@@ -75,6 +74,44 @@ namespace ZA
             foreach (var t in gun.root.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = Layers.ViewModel;
             foreach (var r in gun.root.GetComponentsInChildren<Renderer>(true)) { r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r.receiveShadows = false; }
             g.localScale = Vector3.one * 0.55f;
+            // Echtes Waffenmodell aus dem Store-Paket (falls vorhanden) statt Klötzchenwaffe
+            if (realGun) Object.Destroy(realGun); realGun = null; realAnim = null; realMuzzle = null; realActive = false;
+            var prefab = Resources.Load<GameObject>("Generated/Weapons/" + weaponId);
+            if (prefab)
+            {
+                realGun = Object.Instantiate(prefab, cam.transform); realGun.name = "realgun_" + weaponId;
+                realGun.transform.localPosition = realOffset; realGun.transform.localRotation = Quaternion.identity; realGun.transform.localScale = Vector3.one * realScale;
+                realAnim = realGun.GetComponent<Animator>() ?? realGun.GetComponentInChildren<Animator>();
+                if (realAnim) { realAnim.cullingMode = AnimatorCullingMode.AlwaysAnimate; realAnim.applyRootMotion = false; }
+                foreach (var t in realGun.GetComponentsInChildren<Transform>(true)) { string n = t.name.ToLowerInvariant(); if (realMuzzle == null && (n.Contains("muzzle") || n.Contains("flash") || n.Contains("barrel end"))) realMuzzle = t; }
+                foreach (var t in realGun.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = Layers.ViewModel;
+                realActive = true; gun.root.SetActive(false); realState = "";
+            }
+        }
+        /// <summary>Sichtbarkeit der Waffe in der Hand (Klötzchen- oder echtes Modell)</summary>
+        public void SetVmVisible(bool on) { vmRoot.gameObject.SetActive(on && !realActive); if (realGun) realGun.SetActive(on); }
+        void UpdateRealGun(float dt, float moveFrac)
+        {
+            if (!realAnim) return;
+            string st;
+            if (switchT > 0.1f) st = "Select";
+            else if (reloadT > 0) st = "Reload";
+            else if (meleeT > 0) st = "MeleeAttack";
+            else if (nadeT > 0) st = "GrenadeThrow";
+            else if (slideT > 0.35f) st = aim > 0.5f ? "ZoomFire" : "Fire";
+            else if (aim > 0.5f) st = moveFrac > 0.15f ? "ZoomMove" : "ZoomIdle";
+            else if (sprinting && moveFrac > 0.3f) st = "FastMove";
+            else if (moveFrac > 0.15f) st = "Move";
+            else st = "Idle";
+            if (st != realState)
+            {
+                foreach (var n in RealStates) realAnim.SetBool(n, false);
+                realAnim.SetBool(st, true); realState = st;
+            }
+            // leichtes Schwanken wie beim Klötzchenmodell
+            swayX += (Mathf.Clamp(-frameLookDX * 0.0006f, -0.06f, 0.06f) - swayX) * Mathf.Min(1, dt * 10);
+            realGun.transform.localPosition = realOffset + new Vector3(swayX * 0.5f, -Mathf.Abs(Mathf.Cos(bob)) * 0.006f * moveFrac, 0);
+            realGun.transform.localRotation = Quaternion.Euler(kick * -2f, swayX * 40f, 0);
         }
         static Vector3 AimPos(string w) => w switch { "pistol" => new Vector3(0, -0.085f, -0.34f), "smg" => new Vector3(0, -0.09f, -0.3f), "shotgun" => new Vector3(0, -0.1f, -0.32f), "rifle" => new Vector3(0, -0.135f, -0.27f), "sniper" => new Vector3(0, -0.13f, -0.25f), "launcher" => new Vector3(-0.09f, -0.16f, -0.3f), _ => new Vector3(0.16f, -0.22f, -0.42f) };
         static Vector3 Fore(string w) => w switch { "pistol" => new Vector3(-0.03f, -0.09f, 0.02f), "smg" => new Vector3(0, -0.04f, -0.28f), "shotgun" => new Vector3(0, -0.04f, -0.36f), "rifle" => new Vector3(0, -0.04f, -0.4f), "sniper" => new Vector3(0, -0.05f, -0.42f), "launcher" => new Vector3(0, -0.04f, -0.34f), _ => new Vector3(0.14f, 0.05f, 0.06f) };
@@ -177,6 +214,7 @@ namespace ZA
 
         void UpdateViewmodel(float dt, float moveFrac)
         {
+            if (realActive) { slideT = Mathf.Max(0, slideT - dt * 9); kick *= Mathf.Exp(-dt * 14); UpdateRealGun(dt, moveFrac); return; }
             if (gun == null) return;
             var g = gun.root.transform;
             var hip = new Vector3(0.2f, -0.2f, -0.55f); var ap = AimPos(weapon); var aimP = new Vector3(ap.x * 0.55f, ap.y * 0.55f - 0.02f, ap.z - 0.12f);
@@ -211,6 +249,7 @@ namespace ZA
 
         public Vector3 MuzzleWorld()
         {
+            if (realActive && realMuzzle) return realMuzzle.position;
             var off = new Vector3(0.2f * (1 - aim), -0.16f + 0.08f * aim, 0.85f);
             return cam.transform.position + cam.transform.rotation * off;
         }

@@ -6,3 +6,4 @@ unity/obj/
 unity/UserSettings/
 unity/Build/*_DoNotShip/
 .DS_Store
+unity/Build/

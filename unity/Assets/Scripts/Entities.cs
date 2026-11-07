@@ -12,6 +12,8 @@ namespace ZA
         public float x, z, rot, tx, tz, trot, hp = 100, phase, seed, atkT, flash, rise, groanT, walk, deathT, bigDeath = -99, flinch, lastHp = 100;
         public bool dying, wasFrozen;
         public HealthBar bar; public List<Collider> boxes = new List<Collider>();
+        // realistischer Zombie (gekauftes Modell + Animator)
+        public bool real; public Animator anim; public List<Material> mats = new List<Material>(); public Material glowMat; public float lastAtk, spitTrig, hitCd; public Transform headBone;
     }
     public class Remote
     {
@@ -40,8 +42,52 @@ namespace ZA
         public Entities(Effects fx, Sfx sfx, Camera cam) { this.fx = fx; this.sfx = sfx; this.cam = cam; root = new GameObject("Entities").transform; }
 
         // ------------------------------------------------------------------ Zombies
+        static readonly Dictionary<string, string> Variant = new Dictionary<string, string> { ["walker"] = "Default", ["runner"] = "Yellow", ["crawler"] = "Green", ["spitter"] = "Green", ["exploder"] = "Yellow", ["brute"] = "Blue", ["boss"] = "Blue" };
+        static readonly Dictionary<string, Color> Tint = new Dictionary<string, Color> { ["walker"] = Color.white, ["runner"] = new Color(1f, 0.95f, 0.85f), ["crawler"] = new Color(0.85f, 1f, 0.85f), ["spitter"] = new Color(0.8f, 1f, 0.6f), ["exploder"] = new Color(1f, 0.75f, 0.5f), ["brute"] = new Color(0.75f, 0.75f, 0.8f), ["boss"] = new Color(0.6f, 0.5f, 0.75f) };
+        static bool? realAvailable;
+        public static bool RealZombies { get { if (realAvailable == null) realAvailable = Resources.Load<GameObject>("Generated/Zombie_Default") != null; return realAvailable.Value; } }
+
+        /// <summary>Zombie aus dem gekauften Modell (Humanoid + Animator)</summary>
+        Zombie CreateRealZombie(int id, string type, float x, float z, float rot, bool spawning)
+        {
+            var cfg = D.zombie[type];
+            var prefab = Resources.Load<GameObject>("Generated/Zombie_" + (Variant.TryGetValue(type, out var v) ? v : "Default")) ?? Resources.Load<GameObject>("Generated/Zombie_Default");
+            var go = Object.Instantiate(prefab, root); go.name = "zombie_" + type;
+            float s = cfg.scale * (type == "boss" ? 0.95f : type == "brute" ? 1.0f : 1.0f);
+            go.transform.localScale = Vector3.one * s;
+            go.transform.position = new Vector3(x, spawning ? -2.2f * s : 0, z); go.transform.rotation = Quaternion.Euler(0, rot * Mathf.Rad2Deg, 0);
+            var z0 = new Zombie { id = id, type = type, cfg = cfg, go = go, real = true, x = x, z = z, rot = rot, tx = x, tz = z, trot = rot, phase = Random.value * 6, seed = Random.value * 10, rise = spawning ? 1 : 0, groanT = 1 + Random.value * 8 };
+            z0.anim = go.GetComponent<Animator>(); if (z0.anim) { z0.anim.applyRootMotion = false; z0.anim.SetBool("Crawl", cfg.crawl); z0.anim.speed = 0.9f + Random.value * 0.25f; }
+            var tint = Tint.TryGetValue(type, out var tc) ? tc : Color.white;
+            foreach (var r in go.GetComponentsInChildren<Renderer>())
+            {
+                r.shadowCastingMode = highQuality || type == "boss" ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
+                var ms = r.materials; // Instanzen, damit Tönung/Blinken pro Zombie geht
+                foreach (var m in ms) { if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", m.GetColor("_BaseColor") * tint); z0.mats.Add(m); }
+            }
+            if (cfg.explode && z0.mats.Count > 0) z0.glowMat = z0.mats[0];
+            // Trefferboxen an Knochen
+            Transform head = z0.anim ? z0.anim.GetBoneTransform(HumanBodyBones.Head) : null, chest = z0.anim ? (z0.anim.GetBoneTransform(HumanBodyBones.Chest) ?? z0.anim.GetBoneTransform(HumanBodyBones.Spine)) : null, hips = z0.anim ? z0.anim.GetBoneTransform(HumanBodyBones.Hips) : null;
+            z0.headBone = head;
+            Collider Box(Transform parent, Vector3 size, Vector3 center, bool isHead)
+            {
+                var hb = new GameObject(isHead ? "hb_head" : "hb_body"); hb.transform.SetParent(parent ?? go.transform, false); hb.layer = Layers.Hitbox;
+                var c = hb.AddComponent<BoxCollider>(); c.isTrigger = true; c.size = size; c.center = center; var zh = hb.AddComponent<ZombieHitbox>(); zh.z = z0; zh.head = isHead; z0.boxes.Add(c); return c;
+            }
+            if (head) Box(head, new Vector3(0.26f, 0.3f, 0.28f), new Vector3(0, 0.1f, 0.02f), true); else Box(null, Vector3.one * 0.3f, new Vector3(0, 1.65f, 0), true);
+            if (chest) Box(chest, new Vector3(0.45f, 0.6f, 0.35f), new Vector3(0, 0.1f, 0), false);
+            if (hips) Box(hips, new Vector3(0.4f, 0.5f, 0.3f), new Vector3(0, 0.15f, 0), false);
+            if (!chest && !hips) Box(null, new Vector3(0.5f, 1.3f, 0.4f), new Vector3(0, 0.8f, 0), false);
+            if (cfg.crawl) foreach (var b in z0.boxes) { b.transform.localScale = Vector3.one; }
+            z0.bar = HealthBar.Create(go.transform, type == "boss" ? 2.2f : type == "brute" ? 1.4f : 0.9f, 2.05f); z0.bar.gameObject.SetActive(false);
+            zombies[id] = z0;
+            if (spawning) fx.Burst(new Vector3(x, 0.1f, z), U.C("#5d4037"), 12, 3, 0.15f, 1, 2);
+            return z0;
+        }
+
         public Zombie CreateZombie(int id, string type, float x, float z, float rot, bool spawning)
         {
+            if (RealZombies) return CreateRealZombie(id, type, x, z, rot, spawning);
             var cfg = D.zombie[type];
             float wide = type == "brute" ? 1.3f : type == "boss" ? 1.35f : 1;
             var rig = Models.BuildCharacter(true, cfg.skin, cfg.shirt, cfg.pants, cfg.eyes, cfg.scale, wide, type);
@@ -72,6 +118,15 @@ namespace ZA
             foreach (var b in z.boxes) b.enabled = false;
             var p = new Vector3(z.x, 1.2f * z.cfg.scale, z.z);
             fx.Blood(p, null, true);
+            if (z.real)
+            {
+                var cols0 = new[] { U.C("#6b7f4a"), U.C("#4a3a2a"), U.C("#8b0000") };
+                if (head && z.headBone) { fx.Gibs(z.headBone.position, new[] { U.C("#6b7f4a"), U.C("#8b0000") }, 9, 4); z.headBone.localScale = Vector3.zero; }
+                if (big || (T - z.bigDeath < 0.4f)) { fx.Gibs(p, cols0, 14, 7); z.go.SetActive(false); z.deathT = 3; }
+                else if (z.anim) z.anim.SetTrigger("Die");
+                if (Random.value < 0.5f) sfx.Groan(p, z.type == "boss" ? 0.5f : 1.3f);
+                return;
+            }
             var cols = new[] { U.C(z.cfg.skin), U.C(z.cfg.shirt), U.C(z.cfg.pants) };
             if (head) { z.rig.head.gameObject.SetActive(false); var hp = z.rig.headMesh.position; fx.Gibs(hp, new[] { U.C(z.cfg.skin), U.C(z.cfg.skin), U.C("#8b0000") }, 9, 4); fx.Burst(hp, U.C(z.cfg.eyes), 5, 3, 0.07f, 0.5f); }
             if (big || (T - z.bigDeath < 0.4f)) { fx.Gibs(p, cols, 14, 7); z.go.SetActive(false); z.deathT = 3; }
@@ -85,6 +140,10 @@ namespace ZA
             foreach (var z in list)
             {
                 var c = z.rig; float s = z.cfg.scale;
+                if (z.real)
+                {
+                    UpdateRealZombie(z, dt, k); continue;
+                }
                 if (z.dying)
                 {
                     z.deathT += dt; float p = Mathf.Min(1, z.deathT / 0.45f);
@@ -116,11 +175,50 @@ namespace ZA
                     foreach (var m in c.mats) if (m != c.glow) { if (frozen) U.SetEmission(m, U.C("#4fc3f7"), 0.55f + z.flash * 0.6f); else U.SetEmission(m, Color.white, z.flash * 0.7f); }
                     z.wasFrozen = frozen;
                 }
-                if (c.glow != null) U.SetEmission(c.glow, c.glow.GetColor("_BaseColor"), 1.2f + Mathf.Sin(T * 9 + z.seed) * 0.9f);
+                if (c.glow != null) U.SetEmission(c.glow, U.GetColor(c.glow), 1.2f + Mathf.Sin(T * 9 + z.seed) * 0.9f);
                 bool showBar = (z.hp < 100 || z.type == "boss" || z.type == "brute") && z.rise <= 0;
                 z.bar.gameObject.SetActive(showBar); if (showBar) z.bar.Set(z.hp / 100f);
                 z.groanT -= dt; if (z.groanT <= 0) { z.groanT = 4 + Random.value * 9; sfx.Groan(z.go.transform.position, z.type == "boss" ? 0.5f : z.type == "brute" ? 0.7f : z.type == "runner" ? 1.35f : 1); }
             }
+        }
+
+        void UpdateRealZombie(Zombie z, float dt, float k)
+        {
+            float s = z.cfg.scale;
+            if (z.dying)
+            {
+                z.deathT += dt;
+                if (z.headBone && z.headBone.localScale == Vector3.zero) z.headBone.localScale = Vector3.zero; // Kopf bleibt weg
+                if (z.deathT > 2.5f) z.go.transform.position += Vector3.down * dt * 0.7f;
+                if (z.deathT > 4.2f) RemoveZombie(z);
+                return;
+            }
+            float ox = z.x, oz = z.z;
+            z.x += (z.tx - z.x) * k; z.z += (z.tz - z.z) * k; z.rot = Mathf.LerpAngle(z.rot * Mathf.Rad2Deg, z.trot * Mathf.Rad2Deg, k) * Mathf.Deg2Rad;
+            float spd = Mathf.Sqrt((z.x - ox) * (z.x - ox) + (z.z - oz) * (z.z - oz)) / Mathf.Max(dt, 1e-3f);
+            z.walk += (Mathf.Clamp01(spd / (z.cfg.speed * 0.8f)) - z.walk) * Mathf.Min(1, dt * 8);
+            float y = 0;
+            if (z.rise > 0) { z.rise -= dt; y = -2.2f * s * Mathf.Max(0, z.rise); if (Random.value < 0.3f) fx.Particle(new Vector3(z.x + Random.value - 0.5f, 0.05f, z.z + Random.value - 0.5f), new Vector3(0, 2, 0), U.C("#4e342e"), 0.12f, 0.6f); }
+            z.go.transform.position = new Vector3(z.x, y, z.z); z.go.transform.rotation = Quaternion.Euler(0, z.rot * Mathf.Rad2Deg, 0);
+            if (z.anim)
+            {
+                z.anim.SetFloat("Speed", Mathf.Min(4.5f, spd / Mathf.Max(0.5f, s)));
+                if (z.atkT > 0 && T - z.lastAtk > 0.6f) { z.lastAtk = T; if (z.spitTrig > 0) { z.anim.SetTrigger("Spit"); z.spitTrig = 0; } else z.anim.SetTrigger("Attack"); }
+                z.hitCd -= dt;
+                if (z.hp < z.lastHp - 3 && z.atkT <= 0 && z.hitCd <= 0 && z.type != "boss") { z.anim.SetTrigger("Hit"); z.hitCd = 0.8f; }
+                z.lastHp = z.hp;
+            }
+            if (z.atkT > 0) z.atkT -= dt;
+            if (z.flash > 0 || frozen || z.wasFrozen)
+            {
+                z.flash = Mathf.Max(0, z.flash - dt * 6);
+                foreach (var m in z.mats) { if (frozen) U.SetEmission(m, U.C("#4fc3f7"), 0.3f + z.flash * 0.4f); else U.SetEmission(m, Color.white, z.flash * 0.5f); }
+                z.wasFrozen = frozen;
+            }
+            if (z.glowMat != null && !frozen && z.flash <= 0) U.SetEmission(z.glowMat, U.C("#ff6d00"), 0.25f + Mathf.Max(0, Mathf.Sin(T * 9 + z.seed)) * 0.5f);
+            bool showBar = (z.hp < 100 || z.type == "boss" || z.type == "brute") && z.rise <= 0;
+            z.bar.gameObject.SetActive(showBar); if (showBar) z.bar.Set(z.hp / 100f);
+            z.groanT -= dt; if (z.groanT <= 0) { z.groanT = 4 + Random.value * 9; sfx.Groan(z.go.transform.position, z.type == "boss" ? 0.5f : z.type == "brute" ? 0.7f : z.type == "runner" ? 1.35f : 1); }
         }
 
         // ------------------------------------------------------------------ Mitspieler

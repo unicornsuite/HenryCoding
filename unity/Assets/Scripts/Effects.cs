@@ -45,11 +45,11 @@ namespace ZA
             var sol = ps.sizeOverLifetime; sol.enabled = true; sol.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0, 1), new Keyframe(0.6f, 1), new Keyframe(1, 0)));
             var rot = ps.rotationOverLifetime; rot.enabled = true; rot.separateAxes = true; rot.x = 3; rot.y = 5; rot.z = 2;
             var r = ps.GetComponent<ParticleSystemRenderer>(); r.renderMode = ParticleSystemRenderMode.Mesh; r.mesh = cube; r.alignment = ParticleSystemRenderSpace.World;
-            var pm = new Material(U.ParticleLit); pm.SetColor("_BaseColor", Color.white); r.sharedMaterial = pm;
+            var pm = new Material(U.ParticleLit); U.SetColor(pm, Color.white); r.sharedMaterial = pm;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             ps.Play();
             tracerMat = U.UnlitMat(new Color(1, 0.96f, 0.6f, 0.9f), false, true);
-            flashMat = U.UnlitMat(new Color(1, 0.82f, 0.5f, 1), false, true); flashMat.SetTexture("_BaseMap", U.GlowTex()); flashMat.mainTexture = U.GlowTex();
+            flashMat = U.UnlitMat(new Color(1, 0.82f, 0.5f, 1), false, true); U.SetMainTex(flashMat, U.GlowTex());
             sphereMat = U.UnlitMat(new Color(1, 0.67f, 0.25f, 0.9f), false, true);
             boltMat = U.UnlitMat(new Color(0.5f, 0.85f, 1f, 1), false, true);
             poolMat = U.UnlitMat(new Color(0.46f, 1, 0.01f, 0.45f), true);
@@ -116,12 +116,12 @@ namespace ZA
         {
             if (lightPool.Count > 0) { var l = lightPool.Pop(); l.gameObject.SetActive(true); return l; }
             var go = new GameObject("fxlight"); go.transform.SetParent(root, false);
-            var li = go.AddComponent<Light>(); li.type = LightType.Point; li.shadows = LightShadows.None; return li;
+            var li = go.AddComponent<Light>(); li.type = LightType.Point; li.shadows = LightShadows.None; var hd = go.AddComponent<UnityEngine.Rendering.HighDefinition.HDAdditionalLightData>(); hd.affectsVolumetric = true; return li;
         }
         public void FlashLight(Vector3 pos, Color color, float intensity = 8, float dur = 0.06f, float range = 10)
         {
             if (lights.Count > 6) return;
-            var l = GetLight(); l.transform.position = pos; l.color = color; l.range = range; l.intensity = intensity;
+            var l = GetLight(); l.transform.position = pos; l.color = color; l.range = range; var hd = l.GetComponent<UnityEngine.Rendering.HighDefinition.HDAdditionalLightData>(); hd.SetIntensity(intensity * 600f, UnityEngine.Rendering.LightUnit.Lumen);
             lights.Add((l, dur, dur, intensity));
         }
         public void Muzzle(Vector3 pos, float scale = 1, bool withLight = true)
@@ -160,7 +160,7 @@ namespace ZA
         {
             var s = GameObject.CreatePrimitive(PrimitiveType.Sphere); UnityEngine.Object.Destroy(s.GetComponent<Collider>()); s.transform.SetParent(root, false); s.transform.position = pos;
             var r = s.GetComponent<Renderer>(); r.material = new Material(sphereMat); r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            fades.Add((s, 0.45f, 0.45f, (go, k) => { go.transform.localScale = Vector3.one * (radius * (1 - k * k) + 0.3f) * 2; var m = go.GetComponent<Renderer>().material; var c = Color.HSVToRGB(0.08f * k, 1, 0.5f); c.a = k * 0.9f; m.SetColor("_BaseColor", c); }));
+            fades.Add((s, 0.45f, 0.45f, (go, k) => { go.transform.localScale = Vector3.one * (radius * (1 - k * k) + 0.3f) * 2; var m = go.GetComponent<Renderer>().material; var c = Color.HSVToRGB(0.08f * k, 1, 0.5f); c.a = k * 0.9f; U.SetColor(m, c); }));
             FlashLight(pos, U.C("#ff9100"), 40, 0.35f, radius * 5);
             Burst(pos, U.C("#ff6d00"), 18, 9, 0.25f, 0.8f, 3); Burst(pos, U.C("#ffd600"), 10, 7, 0.2f, 0.5f, 2); Burst(pos, U.C("#424242"), 14, 4, 0.45f, 1.6f, 1);
             float d = Vector3.Distance(cam.transform.position, pos);
@@ -171,7 +171,7 @@ namespace ZA
             var q = GameObject.CreatePrimitive(PrimitiveType.Quad); UnityEngine.Object.Destroy(q.GetComponent<Collider>()); q.transform.SetParent(root, false);
             q.transform.position = new Vector3(pos.x, 0.04f, pos.z); q.transform.rotation = Quaternion.Euler(90, 0, 0); q.transform.localScale = Vector3.one * r * 2;
             var rr = q.GetComponent<Renderer>(); rr.material = new Material(poolMat); rr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            fades.Add((q, 1.2f, 1.2f, (go, k) => { var m = go.GetComponent<Renderer>().material; var c = m.GetColor("_BaseColor"); c.a = k * 0.45f; m.SetColor("_BaseColor", c); }));
+            fades.Add((q, 1.2f, 1.2f, (go, k) => { var m = go.GetComponent<Renderer>().material; var c = U.GetColor(m); c.a = k * 0.45f; U.SetColor(m, c); }));
             Burst(new Vector3(pos.x, 0.2f, pos.z), U.C("#aeea00"), 14, 4, 0.1f, 0.6f, 2);
         }
         public void Spit(Vector3 a, Vector3 b, float dur = 0.7f)
@@ -217,7 +217,7 @@ namespace ZA
             {
                 var (l, t, max, peak) = lights[i]; t -= dt;
                 if (t <= 0) { l.gameObject.SetActive(false); lightPool.Push(l); lights.RemoveAt(i); continue; }
-                l.intensity = peak * (t / max); lights[i] = (l, t, max, peak);
+                l.GetComponent<UnityEngine.Rendering.HighDefinition.HDAdditionalLightData>().SetIntensity(peak * (t / max) * 600f, UnityEngine.Rendering.LightUnit.Lumen); lights[i] = (l, t, max, peak);
             }
             for (int i = projectiles.Count - 1; i >= 0; i--)
             {

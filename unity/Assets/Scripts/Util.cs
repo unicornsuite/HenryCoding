@@ -14,12 +14,14 @@ namespace ZA
     public static class U
     {
         static readonly Dictionary<string, Material> matCache = new Dictionary<string, Material>();
-        static Shader litShader, unlitShader, particleShader;
+        static Shader litShader, unlitShader, particleShader, particleLitShader;
         public static Shader FindShader(string name, string resource) { var s = Shader.Find(name); if (s == null) { var m = Resources.Load<Material>("Shaders/" + resource); if (m) s = m.shader; } if (s == null) Debug.LogError("Shader nicht gefunden: " + name); return s; }
-        public static Shader Lit => litShader ??= FindShader("Universal Render Pipeline/Lit", "Lit");
-        public static Shader Unlit => unlitShader ??= FindShader("Universal Render Pipeline/Unlit", "Unlit");
-        public static Shader Particle => particleShader ??= FindShader("Universal Render Pipeline/Particles/Unlit", "ParticlesUnlit");
-        public static Shader ParticleLit => FindShader("Universal Render Pipeline/Particles/Lit", "ParticlesLit") ?? Lit;
+        public static Shader Lit => litShader ??= FindShader("HDRP/Lit", "Lit");
+        public static Shader Unlit => unlitShader ??= FindShader("HDRP/Unlit", "Unlit");
+        public static Shader Particle => particleShader ??= (Resources.Load<Material>("Shaders/ParticleUnlit")?.shader ?? Unlit);
+        public static Shader ParticleLit => particleLitShader ??= (Resources.Load<Material>("Shaders/ParticleLit")?.shader ?? Particle);
+        /// <summary>Emission in HDRP ist HDR und wird an die (automatische) Belichtung angepasst</summary>
+        public const float EmissiveScale = 6f;
 
         public static Color C(string hex, float a = 1f) => GameData.Col(hex, a);
         public static Color Shade(Color c, float f) => new Color(Mathf.Clamp01(c.r * f), Mathf.Clamp01(c.g * f), Mathf.Clamp01(c.b * f), c.a);
@@ -38,54 +40,62 @@ namespace ZA
             var m = new Material(Lit);
             m.SetColor("_BaseColor", col); m.color = col;
             m.SetFloat("_Metallic", metallic); m.SetFloat("_Smoothness", smooth);
-            if (tex) { m.SetTexture("_BaseMap", tex); m.mainTexture = tex; }
-            if (normal) { m.SetTexture("_BumpMap", normal); m.SetFloat("_BumpScale", normalScale); m.EnableKeyword("_NORMALMAP"); }
+            if (tex) { m.SetTexture("_BaseColorMap", tex); m.mainTexture = tex; }
+            if (normal) { m.SetTexture("_NormalMap", normal); m.SetFloat("_NormalScale", normalScale); m.EnableKeyword("_NORMALMAP"); }
             if (emissive.HasValue) SetEmission(m, emissive.Value, emissiveI);
+            UnityEngine.Rendering.HighDefinition.HDMaterial.ValidateMaterial(m);
             return m;
         }
-        /// <summary>Gecachtes Material mit Farbtextur und Normal Map</summary>
+        public static void SetEmission(Material m, Color col, float intensity)
+        {
+            UnityEngine.Rendering.HighDefinition.HDMaterial.SetUseEmissiveIntensity(m, false);
+            UnityEngine.Rendering.HighDefinition.HDMaterial.SetEmissiveColor(m, col * intensity * EmissiveScale);
+            m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        }
         public static Material MatN(string hex, Texture2D tex, Texture2D normal, float smooth = 0.3f, float normalScale = 1f)
         {
             string key = $"N|{hex}|{(tex ? tex.GetInstanceID() : 0)}|{(normal ? normal.GetInstanceID() : 0)}|{smooth}|{normalScale}";
             if (matCache.TryGetValue(key, out var m)) return m;
             m = NewMat(C(hex), 0.05f, smooth, tex, null, 0, normal, normalScale); matCache[key] = m; return m;
         }
-        /// <summary>Alpha-Cutout-Material (Gras, Blätter)</summary>
+        /// <summary>Alpha-Cutout-Material (Gras, Blätter), beidseitig</summary>
         public static Material Cutout(Texture2D tex, Color tint)
         {
             var m = new Material(Lit);
-            m.SetColor("_BaseColor", tint); m.SetTexture("_BaseMap", tex); m.mainTexture = tex;
-            m.SetFloat("_AlphaClip", 1); m.SetFloat("_Cutoff", 0.45f); m.EnableKeyword("_ALPHATEST_ON"); m.renderQueue = 2450;
-            m.SetFloat("_Cull", 0); m.SetFloat("_Smoothness", 0.1f); m.doubleSidedGI = true;
+            m.SetColor("_BaseColor", tint); m.SetTexture("_BaseColorMap", tex); m.mainTexture = tex; m.SetFloat("_Smoothness", 0.1f);
+            UnityEngine.Rendering.HighDefinition.HDMaterial.SetAlphaClipping(m, true); UnityEngine.Rendering.HighDefinition.HDMaterial.SetAlphaCutoff(m, 0.45f);
+            m.SetFloat("_DoubleSidedEnable", 1); m.SetFloat("_CullMode", 0); m.EnableKeyword("_DOUBLESIDED_ON");
+            UnityEngine.Rendering.HighDefinition.HDMaterial.ValidateMaterial(m);
             return m;
         }
-        public static void SetEmission(Material m, Color col, float intensity)
-        {
-            if (intensity > 0) { m.EnableKeyword("_EMISSION"); m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive; }
-            m.SetColor("_EmissionColor", col * intensity);
-        }
+        public static void DoubleSided(Material m) { m.SetFloat("_DoubleSidedEnable", 1); m.SetFloat("_CullMode", 0); m.EnableKeyword("_DOUBLESIDED_ON"); UnityEngine.Rendering.HighDefinition.HDMaterial.ValidateMaterial(m); }
+        /// <summary>Transparentes Lit-Material</summary>
         public static Material Transparent(Color col, float smooth = 0.3f)
         {
             var m = new Material(Lit);
-            m.SetFloat("_Surface", 1); m.SetFloat("_Blend", 0); m.SetFloat("_ZWrite", 0); m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha); m.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT"); m.renderQueue = 3000;
             m.SetColor("_BaseColor", col); m.color = col; m.SetFloat("_Smoothness", smooth);
+            UnityEngine.Rendering.HighDefinition.HDMaterial.SetSurfaceType(m, true);
+            m.SetFloat("_BlendMode", 0); m.SetFloat("_ZWrite", 0); m.EnableKeyword("_BLENDMODE_ALPHA");
+            UnityEngine.Rendering.HighDefinition.HDMaterial.ValidateMaterial(m);
             return m;
         }
         public static Material UnlitMat(Color col, bool transparent = false, bool additive = false)
         {
             var m = new Material(Unlit);
-            m.SetColor("_BaseColor", col); m.color = col;
+            m.SetColor("_UnlitColor", col); m.color = col;
             if (transparent || additive)
             {
-                m.SetFloat("_Surface", 1); m.SetFloat("_ZWrite", 0); m.renderQueue = 3000;
-                m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                m.SetFloat("_DstBlend", additive ? (float)UnityEngine.Rendering.BlendMode.One : (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                if (additive) m.SetFloat("_Blend", 2);
+                UnityEngine.Rendering.HighDefinition.HDMaterial.SetSurfaceType(m, true);
+                m.SetFloat("_BlendMode", additive ? 1 : 0); m.SetFloat("_ZWrite", 0);
+                m.EnableKeyword(additive ? "_BLENDMODE_ADD" : "_BLENDMODE_ALPHA");
+                UnityEngine.Rendering.HighDefinition.HDMaterial.ValidateMaterial(m);
             }
             return m;
         }
+        /// <summary>Farbe eines Materials setzen (Lit oder Unlit)</summary>
+        public static void SetColor(Material m, Color c) { if (m.HasProperty("_UnlitColor")) m.SetColor("_UnlitColor", c); if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c); m.color = c; }
+        public static Color GetColor(Material m) => m.HasProperty("_UnlitColor") ? m.GetColor("_UnlitColor") : m.GetColor("_BaseColor");
+        public static void SetMainTex(Material m, Texture t) { if (m.HasProperty("_UnlitColorMap")) m.SetTexture("_UnlitColorMap", t); if (m.HasProperty("_BaseColorMap")) m.SetTexture("_BaseColorMap", t); m.mainTexture = t; }
 
         // ------------------------------------------------------------------ Grundkörper
         public static GameObject Prim(PrimitiveType t, Transform parent, Material m, Vector3 pos, Vector3 scale, Vector3? euler = null, bool collider = false, bool shadows = true, int layer = -1)
@@ -306,16 +316,37 @@ namespace ZA
             if (seed == 3) rockMesh = m; return m;
         }
 
-        // ------------------------------------------------------------------ Beschriftungen
+        // ------------------------------------------------------------------ Beschriftungen (World-Space-Canvas, funktioniert in HDRP)
         static Font font;
         public static Font Font => font ??= Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         public static TextMesh Label(Transform parent, string text, Color color, float y, float size = 0.3f)
         {
             var g = new GameObject("label"); g.transform.SetParent(parent, false); g.transform.localPosition = new Vector3(0, y, 0);
-            var tm = g.AddComponent<TextMesh>(); tm.text = text; tm.color = color; tm.font = Font; tm.fontSize = 48; tm.characterSize = size * 0.1f; tm.anchor = TextAnchor.MiddleCenter; tm.alignment = TextAlignment.Center; tm.fontStyle = FontStyle.Bold;
-            var mr = g.GetComponent<MeshRenderer>(); mr.sharedMaterial = Font.material; mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var canvas = g.AddComponent<Canvas>(); canvas.renderMode = RenderMode.WorldSpace; canvas.sortingOrder = 5;
+            var rt = g.GetComponent<RectTransform>(); rt.sizeDelta = new Vector2(400, 60); rt.localScale = Vector3.one * (size * 0.0125f);
+            var tg = new GameObject("text", typeof(RectTransform)); tg.transform.SetParent(g.transform, false);
+            var trt = tg.GetComponent<RectTransform>(); trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero;
+            var t = tg.AddComponent<UnityEngine.UI.Text>(); t.font = Font; t.fontSize = 40; t.color = color; t.alignment = TextAnchor.MiddleCenter; t.text = text; t.fontStyle = FontStyle.Bold; t.horizontalOverflow = HorizontalWrapMode.Overflow; t.verticalOverflow = VerticalWrapMode.Overflow;
+            var sh = tg.AddComponent<UnityEngine.UI.Shadow>(); sh.effectColor = new Color(0, 0, 0, 0.9f); sh.effectDistance = new Vector2(2, -2);
             g.AddComponent<Billboard>();
+            var tm = g.AddComponent<TextMesh>(); tm.hideFlags = HideFlags.HideInInspector; // Kompatibilitäts-Hülle: text/color werden weitergereicht
+            var link = g.AddComponent<LabelLink>(); link.ui = t; link.tm = tm;
+            tm.text = text; tm.color = color; tm.characterSize = size * 0.1f;
+            var mr = g.GetComponent<MeshRenderer>(); if (mr) mr.enabled = false;
             return tm;
+        }
+    }
+
+    /// <summary>Spiegelt TextMesh-Eigenschaften (text, color, characterSize) in das UI-Text des World-Space-Canvas</summary>
+    public class LabelLink : MonoBehaviour
+    {
+        public UnityEngine.UI.Text ui; public TextMesh tm; string lastText; Color lastColor; float lastSize;
+        void LateUpdate()
+        {
+            if (!ui || !tm) return;
+            if (tm.text != lastText) { ui.text = tm.text; lastText = tm.text; }
+            if (tm.color != lastColor) { ui.color = tm.color; lastColor = tm.color; }
+            if (tm.characterSize != lastSize) { transform.localScale = Vector3.one * (tm.characterSize * 0.125f); lastSize = tm.characterSize; }
         }
     }
 
