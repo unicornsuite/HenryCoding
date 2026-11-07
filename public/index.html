@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Zombie-Ansturm</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#1b2a1b">
+  <meta name="apple-mobile-web-app-title" content="Zombie-Ansturm">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/examples/jsm/" } }
+  </script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="dmgnums"></div>
+
+<!-- ============================ HUD ============================ -->
+<div id="hud" class="hidden">
+  <div id="hurtflash"></div>
+  <div id="lowhp"></div>
+  <div id="scope" class="hidden"><div class="ring"></div></div>
+  <div id="crosshair"><i class="u"></i><i class="d"></i><i class="l"></i><i class="r"></i><b></b></div>
+  <div id="hitmarker"></div>
+
+  <div id="top">
+    <div id="wave">WELLE 0</div>
+    <div id="status">Bereit machen…</div>
+    <div class="bar gen"><div id="genbar"></div><span>⚡ GENERATOR <em id="gentext"></em></span></div>
+    <div id="bossbar" class="bar boss hidden"><div></div><span>☠ KOLOSS</span></div>
+    <div id="powerups"></div>
+  </div>
+  <div id="nukeflash"></div>
+  <div id="freeze"></div>
+  <div id="wavesum" class="hidden"></div>
+  <div id="streak"></div>
+
+  <div id="team"></div>
+  <div id="mapwrap"><canvas id="minimap" width="190" height="190"></canvas></div>
+  <div id="feed"></div>
+  <div id="announce"><div class="big"></div><div class="small"></div></div>
+  <div id="prompt"></div>
+  <div id="progress" class="hidden"><div></div></div>
+
+  <div id="bl">
+    <div id="money">$ 0</div>
+    <div class="stat"><span>❤</span><div class="bar hp"><div id="hpbar"></div></div><b id="hptext">100</b></div>
+    <div class="stat"><span>🛡</span><div class="bar armor"><div id="armorbar" style="width:0"></div></div><b id="armortext">0</b></div>
+  </div>
+  <div id="br">
+    <div id="slots"></div>
+    <div id="wname">Pistole</div>
+    <div id="ammo"><span id="mag">12</span><small id="reserve">/ ∞</small></div>
+    <div id="gear"><span id="nades" title="Granaten (G)">💣 0</span><span id="perkicons"></span></div>
+    <div id="reloadtxt" class="hidden">NACHLADEN…</div>
+  </div>
+
+  <div id="chatlog"></div>
+  <input id="chatinput" class="hidden" maxlength="120" placeholder="Nachricht… (Enter senden, Esc abbrechen)" autocomplete="off">
+  <div id="downed" class="hidden"><div class="big">DU BIST AM BODEN</div><div class="small" id="downedtxt"></div></div>
+  <div id="scoreboard" class="hidden"></div>
+  <div id="placehint" class="hidden"></div>
+  <div id="crateui"></div>
+</div>
+
+<!-- ============================ SHOP ============================ -->
+<div id="shop" class="overlay hidden">
+  <div class="panel shop-panel">
+    <div class="shop-head">
+      <h2>🛒 SHOP</h2>
+      <div class="shop-money" id="shopmoney">$ 0</div>
+      <button class="x" id="shopclose" title="Schließen (B / Esc)">✕</button>
+    </div>
+    <div id="shopwarn" class="warn hidden"></div>
+    <div class="tabs">
+      <button data-tab="weapons" class="on">🔫 Waffen</button>
+      <button data-tab="upgrades">⬆ Aufwerten</button>
+      <button data-tab="perks">⭐ Perks</button>
+      <button data-tab="turrets">🗼 Geschütztürme</button>
+      <button data-tab="items">🎒 Ausrüstung</button>
+    </div>
+    <div id="shopgrid" class="grid"></div>
+  </div>
+</div>
+
+<!-- ============================ MENÜ / LOBBY ============================ -->
+<div id="menu" class="overlay">
+  <div class="panel menu-panel">
+    <h1 class="logo">ZOMBIE<span>ANSTURM</span></h1>
+    <p class="tag">Koop-Zombie-Verteidigung · Egoperspektive · Echtzeit-Multiplayer</p>
+    <div id="conn" class="conn">Verbinde mit Server…</div>
+    <div class="cols">
+      <div class="col">
+        <label>Dein Name</label>
+        <input id="name" maxlength="16" placeholder="Spieler">
+        <label>Farbe</label>
+        <div id="colors" class="colors"></div>
+        <label>Mitspieler in der Lobby</label>
+        <ul id="plist" class="plist"></ul>
+        <div class="share" id="share"></div>
+      </div>
+      <div class="col wide">
+        <label>Karte wählen</label>
+        <div id="maps" class="maps"></div>
+        <label>Schwierigkeit</label>
+        <div id="diffs" class="diffs"></div>
+        <button id="startbtn" class="big-btn" disabled>▶ SPIEL STARTEN</button>
+        <details class="settings">
+          <summary>⚙ Einstellungen & Steuerung</summary>
+          <div class="setrow"><span>Maus-Empfindlichkeit</span><input type="range" id="sens" min="0.2" max="3" step="0.05"></div>
+          <div class="setrow"><span>Lautstärke</span><input type="range" id="vol" min="0" max="1" step="0.05"></div>
+          <div class="setrow"><span>Sichtfeld (FOV)</span><input type="range" id="fov" min="60" max="100" step="1"></div>
+          <div class="setrow touchonly"><span>Auto-Feuer (Touch)</span><input type="checkbox" id="autofire"></div>
+          <div class="setrow"><span>Grafik</span><select id="quality"><option value="low">Niedrig (schnell)</option><option value="medium">Mittel</option><option value="high">Hoch</option></select></div>
+          <div class="keys">
+            <div><kbd>W A S D</kbd> Laufen</div><div><kbd>Maus</kbd> Umsehen</div>
+            <div><kbd>Linksklick</kbd> Schießen</div><div><kbd>Rechtsklick</kbd> Zielen</div>
+            <div><kbd>Leertaste</kbd> Springen</div><div><kbd>Shift</kbd> Sprinten</div>
+            <div><kbd>R</kbd> Nachladen</div><div><kbd>1-7 / Mausrad</kbd> Waffe</div>
+            <div><kbd>B</kbd> Shop</div><div><kbd>E</kbd> Wiederbeleben (halten)</div>
+            <div><kbd>N</kbd> Bereit für nächste Welle</div><div><kbd>T</kbd> Chat</div>
+            <div><kbd>Tab</kbd> Punktestand</div><div><kbd>F</kbd> Taschenlampe</div>
+            <div><kbd>G</kbd> Granate werfen</div><div><kbd>V</kbd> Messer</div>
+            <div><kbd>Q</kbd> Turm-Platzierung abbrechen</div><div><kbd>Esc</kbd> Pause</div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ PAUSE ============================ -->
+<div id="pause" class="overlay hidden">
+  <div class="panel small-panel">
+    <h2>PAUSE</h2>
+    <p>Das Spiel läuft für deine Freunde weiter!</p>
+    <button id="resume" class="big-btn">▶ Weiterspielen</button>
+    <button id="leave" class="ghost-btn">Spiel verlassen</button>
+  </div>
+</div>
+
+<!-- ============================ GAME OVER ============================ -->
+<div id="over" class="overlay hidden">
+  <div class="panel small-panel">
+    <h2 class="red">GAME OVER</h2>
+    <p id="overreason"></p>
+    <div id="overwave" class="overwave"></div>
+    <div id="overrecord" class="record hidden"></div>
+    <table id="overstats" class="stats"></table>
+    <button id="tolobby" class="big-btn">Zurück zur Lobby</button>
+  </div>
+</div>
+
+<!-- ============================ TOUCH ============================ -->
+<div id="touch" class="hidden">
+  <div id="movezone"></div>
+  <div id="lookzone"></div>
+  <div id="stick"><div id="knob"></div></div>
+  <button class="tb" id="t-fire"><span>🔥</span><small>Feuer</small></button>
+  <button class="tb sm" id="t-aim"><span>🎯</span><small>Zielen</small></button>
+  <button class="tb sm" id="t-jump"><span>⤒</span><small>Sprung</small></button>
+  <button class="tb sm" id="t-reload"><span>⟳</span><small>Laden</small></button>
+  <button class="tb sm" id="t-use"><span>E</span><small>Helfen</small></button>
+  <button class="tb sm" id="t-nade"><span>💣</span><small>Granate</small></button>
+  <button class="tb sm" id="t-melee"><span>🔪</span><small>Messer</small></button>
+  <button class="tb xs" id="t-pause"><span>⏸</span></button>
+  <button class="tb xs" id="t-shop"><span>🛒</span></button>
+  <button class="tb xs" id="t-ready"><span>✔</span></button>
+  <button class="tb sm hidden" id="t-cancel"><span>✕</span><small>Abbruch</small></button>
+</div>
+
+<div id="toast"></div>
+<div id="rotate" class="hidden">📱↻ Bitte Gerät quer halten</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <rect width="64" height="64" rx="12" fill="#1b2a1b"/>
+  <!-- Zombiekopf -->
+  <rect x="12" y="10" width="40" height="40" fill="#7cb342"/>
+  <rect x="12" y="10" width="40" height="6" fill="#558b2f"/>
+  <!-- Augen -->
+  <rect x="18" y="22" width="12" height="8" fill="#1a1a1a"/>
+  <rect x="34" y="22" width="12" height="8" fill="#1a1a1a"/>
+  <rect x="20" y="24" width="6" height="4" fill="#ff1744"/>
+  <rect x="36" y="24" width="6" height="4" fill="#ff1744"/>
+  <rect x="21" y="25" width="2" height="2" fill="#ffffff"/>
+  <rect x="37" y="25" width="2" height="2" fill="#ffffff"/>
+  <!-- Mund mit Zähnen -->
+  <rect x="18" y="36" width="28" height="9" fill="#2b0f0f"/>
+  <rect x="20" y="36" width="3" height="4" fill="#f5f0d0"/>
+  <rect x="26" y="36" width="3" height="4" fill="#f5f0d0"/>
+  <rect x="32" y="36" width="3" height="4" fill="#f5f0d0"/>
+  <rect x="38" y="36" width="3" height="4" fill="#f5f0d0"/>
+  <rect x="23" y="41" width="3" height="4" fill="#f5f0d0"/>
+  <rect x="35" y="41" width="3" height="4" fill="#f5f0d0"/>
+  <!-- Wunden -->
+  <rect x="44" y="14" width="5" height="9" fill="#7a1010"/>
+  <rect x="14" y="40" width="4" height="6" fill="#7a1010"/>
+  <!-- Boden -->
+  <rect x="0" y="54" width="64" height="10" fill="#6abf4b"/>
+</svg>

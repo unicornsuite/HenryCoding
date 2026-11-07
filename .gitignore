@@ -1,0 +1,8 @@
+node_modules/
+unity/Library/
+unity/Logs/
+unity/Temp/
+unity/obj/
+unity/UserSettings/
+unity/Build/*_DoNotShip/
+.DS_Store

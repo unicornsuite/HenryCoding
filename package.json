@@ -1,0 +1,14 @@
+{
+  "name": "zombie-ansturm",
+  "version": "1.0.0",
+  "description": "Koop-Zombie-Verteidigung in der Egoperspektive – Multiplayer im Browser",
+  "type": "module",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "dependencies": {
+    "three": "0.170.0",
+    "ws": "8.18.0"
+  }
+}
