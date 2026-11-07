@@ -10,7 +10,7 @@ namespace ZA
         public float shake;
         readonly Transform root;
         readonly Camera cam;
-        ParticleSystem ps;
+        ParticleSystem ps, bps; // bps: Blut (gestreckte, weiche Tropfen statt Würfel)
         readonly List<(LineRenderer lr, float t, float max)> lines = new List<(LineRenderer, float, float)>();
         readonly Stack<LineRenderer> linePool = new Stack<LineRenderer>();
         readonly List<(GameObject go, float t, float max, Action<GameObject, float> fn)> fades = new List<(GameObject, float, float, Action<GameObject, float>)>();
@@ -48,6 +48,19 @@ namespace ZA
             var pm = new Material(U.ParticleLit); U.SetColor(pm, Color.white); r.sharedMaterial = pm;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             ps.Play();
+            // Blut-Partikelsystem: Billboards, in Flugrichtung gestreckt, weiche Tropfen-Textur, dunkelrot
+            var bgo = new GameObject("blood_particles"); bgo.transform.SetParent(root, false);
+            bps = bgo.AddComponent<ParticleSystem>();
+            var bm = bps.main; bm.playOnAwake = false; bm.loop = false; bm.maxParticles = 3000; bm.simulationSpace = ParticleSystemSimulationSpace.World; bm.startSize = 0.05f; bm.gravityModifier = 1.6f;
+            var bem = bps.emission; bem.enabled = false; var bsh = bps.shape; bsh.enabled = false;
+            var bcol = bps.collision; bcol.enabled = true; bcol.type = ParticleSystemCollisionType.World; bcol.mode = ParticleSystemCollisionMode.Collision3D; bcol.collidesWith = (1 << Layers.Ground) | (1 << Layers.Solid); bcol.bounce = 0.05f; bcol.dampen = 0.9f; bcol.lifetimeLoss = 0.6f; bcol.quality = ParticleSystemCollisionQuality.Medium; bcol.radiusScale = 0.5f;
+            var bsol = bps.sizeOverLifetime; bsol.enabled = true; bsol.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0, 1), new Keyframe(0.7f, 0.9f), new Keyframe(1, 0)));
+            var bcl = bps.colorOverLifetime; bcl.enabled = true; var grad = new Gradient(); grad.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(new Color(0.6f, 0.6f, 0.6f), 1) }, new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 0.8f), new GradientAlphaKey(0, 1) }); bcl.color = grad;
+            var sph = GameObject.CreatePrimitive(PrimitiveType.Sphere); var sphereMesh = sph.GetComponent<MeshFilter>().sharedMesh; UnityEngine.Object.Destroy(sph);
+            var br = bps.GetComponent<ParticleSystemRenderer>(); br.renderMode = ParticleSystemRenderMode.Mesh; br.mesh = sphereMesh; br.alignment = ParticleSystemRenderSpace.World; // kleine Kugeln: kein Textur-Alpha nötig (der Partikel-Shader nimmt Alpha nur aus der Partikelfarbe)
+            var bpm = new Material(U.ParticleLit); U.SetColor(bpm, Color.white); br.sharedMaterial = bpm;
+            br.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            bps.Play();
             tracerMat = U.UnlitMat(new Color(1, 0.96f, 0.6f, 0.9f), false, true);
             flashMat = U.UnlitMat(new Color(1, 0.82f, 0.5f, 1), false, true); U.SetMainTex(flashMat, U.GlowTex());
             sphereMat = U.UnlitMat(new Color(1, 0.67f, 0.25f, 0.9f), false, true);
@@ -56,6 +69,11 @@ namespace ZA
         }
 
         // ------------------------------------------------------------------ Partikel
+        void BloodDrop(Vector3 pos, Vector3 vel, float size, float life)
+        {
+            var ep = new ParticleSystem.EmitParams { position = pos, velocity = vel, startColor = BloodCol, startSize = size, startLifetime = life };
+            bps.Emit(ep, 1);
+        }
         public void Particle(Vector3 pos, Vector3 vel, Color color, float size = 0.1f, float life = 0.8f, float gravity = 1f)
         {
             var ep = new ParticleSystem.EmitParams { position = pos, velocity = vel, startColor = color, startSize = size, startLifetime = life, rotation3D = new Vector3(UnityEngine.Random.value * 360, UnityEngine.Random.value * 360, 0) };
@@ -69,14 +87,89 @@ namespace ZA
                 Particle(pos, v, color, size * (0.6f + UnityEngine.Random.value * 0.8f), life * (0.6f + UnityEngine.Random.value * 0.6f));
             }
         }
-        static readonly Color[] bloodCols = { U.C("#4caf50"), U.C("#2e7d32"), U.C("#7cb342"), U.C("#8b0000") };
+        // ------------------------------------------------------------------ Blut
+        static readonly Color[] bloodCols = { U.C("#5a0a0a"), U.C("#7a1010"), U.C("#3f0606"), U.C("#8c1a14") };
+        static Color BloodCol => bloodCols[UnityEngine.Random.Range(0, bloodCols.Length)];
+        /// <summary>Blutspritzer aus einer Wunde: feine Tröpfchen in Schussrichtung, dazu Fleck auf Boden/Wand dahinter</summary>
         public void Blood(Vector3 pos, Vector3? dir, bool big = false)
         {
-            for (int i = 0; i < (big ? 18 : 7); i++)
+            int n = big ? 40 : 16;
+            for (int i = 0; i < n; i++)
             {
-                var v = new Vector3((UnityEngine.Random.value - 0.5f) * 3, UnityEngine.Random.value * 3 + 0.5f, (UnityEngine.Random.value - 0.5f) * 3);
-                if (dir.HasValue) v += dir.Value * 2.5f;
-                Particle(pos, v, bloodCols[UnityEngine.Random.Range(0, bloodCols.Length)], 0.07f + UnityEngine.Random.value * 0.08f, 0.7f);
+                var v = new Vector3((UnityEngine.Random.value - 0.5f) * 2.2f, UnityEngine.Random.value * 1.6f + 0.2f, (UnityEngine.Random.value - 0.5f) * 2.2f);
+                if (dir.HasValue) v += dir.Value * (1.5f + UnityEngine.Random.value * 3f);
+                BloodDrop(pos, v, 0.02f + UnityEngine.Random.value * 0.045f, 0.5f + UnityEngine.Random.value * 0.4f);
+            }
+            if (dir.HasValue) Splat(pos, dir.Value, big ? 1.4f : 0.9f, 0.6f);
+            else if (big) GroundSplat(pos, 1.2f + UnityEngine.Random.value * 0.6f);
+            else if (UnityEngine.Random.value < 0.5f) GroundSplat(pos, 0.4f + UnityEngine.Random.value * 0.4f);
+        }
+        /// <summary>Blutfontäne (Kopfschuss/Hals): wird über mehrere Frames aufgerufen</summary>
+        public void BloodSpurt(Vector3 pos, Vector3 dir, float strength)
+        {
+            int n = Mathf.RoundToInt(3 * strength);
+            for (int i = 0; i < n; i++)
+            {
+                var v = dir * (2.5f + UnityEngine.Random.value * 2.5f) * strength + new Vector3((UnityEngine.Random.value - 0.5f) * 1.2f, UnityEngine.Random.value * 0.8f, (UnityEngine.Random.value - 0.5f) * 1.2f);
+                BloodDrop(pos, v, 0.04f + UnityEngine.Random.value * 0.07f, 0.6f + UnityEngine.Random.value * 0.5f);
+            }
+        }
+        /// <summary>Fleischbrocken (Explosionstod): dunkle Fetzen statt bunter Würfel</summary>
+        public void Gore(Vector3 pos, int n = 14, float speed = 6)
+        {
+            var cols = new[] { U.C("#4a0808"), U.C("#5e140e"), U.C("#2e1a14"), U.C("#6a0e0c") };
+            for (int i = 0; i < n; i++)
+            {
+                var v = new Vector3((UnityEngine.Random.value - 0.5f) * speed, UnityEngine.Random.value * speed * 0.8f + 2, (UnityEngine.Random.value - 0.5f) * speed);
+                Particle(pos, v, cols[i % cols.Length], 0.035f + UnityEngine.Random.value * 0.05f, 1.4f + UnityEngine.Random.value * 0.8f);
+            }
+            for (int i = 0; i < 90; i++) { var v = new Vector3((UnityEngine.Random.value - 0.5f) * speed * 1.3f, UnityEngine.Random.value * speed * 0.9f + 1, (UnityEngine.Random.value - 0.5f) * speed * 1.3f); BloodDrop(pos, v, 0.02f + UnityEngine.Random.value * 0.06f, 0.7f + UnityEngine.Random.value * 0.6f); }
+            Blood(pos, null, true);
+            for (int i = 0; i < 3; i++) GroundSplat(pos + new Vector3((UnityEngine.Random.value - 0.5f) * 2.5f, 0, (UnityEngine.Random.value - 0.5f) * 2.5f), 0.6f + UnityEngine.Random.value * 1.0f);
+            Splat(pos, UnityEngine.Random.onUnitSphere, 1.6f, 0.4f); Splat(pos, UnityEngine.Random.onUnitSphere, 1.6f, 0.4f);
+        }
+        // Blutflecken als HDRP-Decals (legen sich auf Terrain, Schutt und Wände, ohne Z-Fighting)
+        readonly List<(UnityEngine.Rendering.HighDefinition.DecalProjector dp, float t, float life, float size, float grow)> splats = new List<(UnityEngine.Rendering.HighDefinition.DecalProjector, float, float, float, float)>();
+        const int MaxSplats = 90;
+        Material[] bloodMats;
+        /// <summary>Fleck in Richtung `dir` auf der nächsten Fläche (Boden, Wand, Schutt) bis `reach`+2 m</summary>
+        public void Splat(Vector3 from, Vector3 dir, float size, float reach)
+        {
+            var d = (dir + Vector3.down * 0.35f).normalized;
+            if (Physics.Raycast(from, d, out var hit, reach + 2f, (1 << Layers.Solid) | (1 << Layers.Ground), QueryTriggerInteraction.Ignore))
+            {
+                float s = size * (0.7f + UnityEngine.Random.value * 0.6f) * Mathf.Clamp(1.4f - hit.distance * 0.25f, 0.5f, 1.4f);
+                AddSplat(hit.point, hit.normal, s, 0.25f);
+            }
+        }
+        public void GroundSplat(Vector3 pos, float size, float grow = 0.6f)
+        {
+            if (Physics.Raycast(pos + Vector3.up * 1.5f, Vector3.down, out var hit, 6f, (1 << Layers.Solid) | (1 << Layers.Ground), QueryTriggerInteraction.Ignore)) AddSplat(hit.point, hit.normal, size, grow);
+        }
+        void AddSplat(Vector3 point, Vector3 normal, float size, float grow)
+        {
+            if (U.DecalBase == null) return;
+            if (bloodMats == null) { bloodMats = new Material[3]; for (int i = 0; i < 3; i++) { var m = new Material(U.DecalBase); m.SetTexture("_BaseColorMap", U.BloodTex(i)); m.EnableKeyword("_COLORMAP"); m.SetColor("_BaseColor", new Color(0.16f, 0.01f, 0.01f, 1f)); m.SetFloat("_DecalBlend", 0.95f); bloodMats[i] = m; } }
+            while (splats.Count >= MaxSplats) { UnityEngine.Object.Destroy(splats[0].dp.gameObject); splats.RemoveAt(0); }
+            var go = new GameObject("blood"); go.transform.SetParent(root, false);
+            go.transform.position = point + normal * 0.25f;
+            go.transform.rotation = Quaternion.LookRotation(-normal) * Quaternion.Euler(0, 0, UnityEngine.Random.value * 360);
+            var dp = go.AddComponent<UnityEngine.Rendering.HighDefinition.DecalProjector>();
+            dp.material = bloodMats[UnityEngine.Random.Range(0, bloodMats.Length)];
+            dp.pivot = new Vector3(0, 0, 0.25f); dp.size = new Vector3(size * 0.25f, size * 0.25f, 0.5f); dp.drawDistance = 120; dp.fadeFactor = 1;
+            float life = 40f + UnityEngine.Random.value * 20f;
+            splats.Add((dp, 0, life, size, grow));
+        }
+        void UpdateSplats(float dt)
+        {
+            for (int i = splats.Count - 1; i >= 0; i--)
+            {
+                var (dp, t, life, size, grow) = splats[i]; t += dt;
+                if (t >= life || dp == null) { if (dp) UnityEngine.Object.Destroy(dp.gameObject); splats.RemoveAt(i); continue; }
+                float k = grow > 0 ? Mathf.Min(1, t / grow) : 1; k = 1 - (1 - k) * (1 - k); float s = size * (0.25f + 0.75f * k);
+                dp.size = new Vector3(s, s, 0.5f);
+                if (t > life - 6f) dp.fadeFactor = (life - t) / 6f;
+                splats[i] = (dp, t, life, size, grow);
             }
         }
         /// <summary>Patronenhülse fliegt nach rechts weg</summary>
@@ -245,6 +338,7 @@ namespace ZA
                 tm.transform.position = pos; float s = 0.7f + t * 0.5f; tm.transform.localScale = Vector3.one * s;
                 var c = tm.color; c.a = Mathf.Min(1, t * 2.5f); tm.color = c; nums[i] = (tm, pos, t, life);
             }
+            UpdateSplats(dt);
             shake = Mathf.Max(0, shake - dt * 1.5f);
         }
 
@@ -255,7 +349,8 @@ namespace ZA
             foreach (var pr in projectiles) UnityEngine.Object.Destroy(pr.o.gameObject); projectiles.Clear();
             foreach (var (o, _, _, _, _) in spits) UnityEngine.Object.Destroy(o.gameObject); spits.Clear();
             foreach (var (tm, _, _, _) in nums) { tm.gameObject.SetActive(false); numPool.Push(tm); } nums.Clear();
-            ps.Clear();
+            foreach (var sp in splats) if (sp.dp) UnityEngine.Object.Destroy(sp.dp.gameObject); splats.Clear();
+            ps.Clear(); bps.Clear();
         }
     }
 }

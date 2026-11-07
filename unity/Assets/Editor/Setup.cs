@@ -57,6 +57,8 @@ namespace ZA
             Variant("LitTransparent", lit, m => { HDMaterial.SetSurfaceType(m, true); m.SetFloat("_BlendMode", 0); m.EnableKeyword("_BLENDMODE_ALPHA"); });
             Variant("UnlitTransparent", unlit, m => { HDMaterial.SetSurfaceType(m, true); m.SetFloat("_BlendMode", 0); m.EnableKeyword("_BLENDMODE_ALPHA"); });
             Variant("UnlitAdditive", unlit, m => { HDMaterial.SetSurfaceType(m, true); m.SetFloat("_BlendMode", 1); m.EnableKeyword("_BLENDMODE_ADD"); });
+            var decal = Shader.Find("HDRP/Decal"); if (decal == null) Debug.LogWarning("HDRP/Decal-Shader nicht gefunden (Blutflecken fallen aus)");
+            Variant("Decal", decal, m => { m.SetFloat("_AffectAlbedo", 1); m.SetFloat("_AffectSmoothness", 1); m.SetFloat("_AffectNormal", 0); m.SetFloat("_Smoothness", 0.75f); m.SetFloat("_DecalBlend", 1); m.EnableKeyword("_MATERIAL_AFFECTS_ALBEDO"); m.EnableKeyword("_MATERIAL_AFFECTS_MASKMAP"); m.EnableKeyword("_COLORMAP"); });
             foreach (var sg in new[] { "ParticleUnlit", "ParticleLit" }) { var sh = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Shaders/" + sg + ".shadergraph"); if (sh != null) Variant(sg, sh, null); else Debug.LogWarning("Partikel-Shader fehlt: " + sg); }
 
             // --- Spielereinstellungen

@@ -93,6 +93,27 @@ namespace ZA
             float x0 = -(types.Length - 1) * spacing / 2;
             for (int i = 0; i < types.Length; i++) { var z = ents.CreateZombie(9000 + i, types[i], p.x - (x0 + i * spacing), p.z + dist + (types[i] == "boss" ? 2.5f : 0), Mathf.PI, false); z.walk = 0.6f; z.atkT = i % 2 == 1 ? 0.5f : 0; }
         }
+        /// <summary>Diagnose: trifft ein Strahl von innerhalb eines Gebäudes die Wand von hinten? (doppelseitige Kollider)</summary>
+        public string DebugWallTest()
+        {
+            var sb = new System.Text.StringBuilder(); int ok = 0, fail = 0;
+            for (int i = 0; i < 16; i++)
+            {
+                var dir = Quaternion.Euler(0, i * 22.5f, 0) * Vector3.forward; var o = cam.transform.position;
+                if (!Physics.Raycast(o, dir, out var h1, 60, 1 << Layers.Solid, QueryTriggerInteraction.Ignore)) continue;
+                var inside = h1.point + dir * 0.6f;
+                bool back = Physics.Raycast(inside, -dir, out var h2, 1.2f, 1 << Layers.Solid, QueryTriggerInteraction.Ignore);
+                if (back) ok++; else fail++;
+                sb.AppendLine($"dir{i * 22.5f:0} hit={h1.collider.name} d={h1.distance:0.0} back={(back ? h2.collider.name + " " + h2.distance.ToString("0.00") : "NEIN")}");
+            }
+            sb.Insert(0, $"Wandtest: von innen getroffen={ok} nicht={fail}\n"); return sb.ToString();
+        }
+        /// <summary>Nur Optik: Vorschau-Zombies lokal sterben lassen (normal / Kopfschuss / Explosion)</summary>
+        public void DebugKillPreview()
+        {
+            int i = 0;
+            foreach (var z in ents.zombies.Values.ToList()) if (z.id >= 9000) { ents.KillZombieLocal(z, i == 1, i == 2); i++; }
+        }
         /// <summary>Nur Optik: Waffenmodell wechseln (ohne Server)</summary>
         public string DebugAnimState() => player.DebugAnimState();
         public void DebugWeapon(string id) { player.BuildViewmodel(id, upg.TryGetValue(id, out var t) ? t : 0, myColor); player.SetVmVisible(true); }

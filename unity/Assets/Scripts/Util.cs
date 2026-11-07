@@ -216,6 +216,21 @@ namespace ZA
             Fill(px, s, C("#ffca28")); var d = C("#212121");
             for (int y = 0; y < s; y++) for (int x = 0; x < s; x++) { int v = ((x + y) / 11) % 2; if (v == 0) px[y * s + x] = d; }
         });
+        /// <summary>Blutspritzer: unregelmäßiger Fleck mit Tropfen (Alpha), Farbe im Material</summary>
+        public static Texture2D BloodTex(int variant) => MakeTex("blood" + variant, 128, (px, s) =>
+        {
+            var r = Rng(101 + variant * 7); Fill(px, s, new Color(1, 1, 1, 0));
+            float cx = s / 2f, cy = s / 2f;
+            void Blob(float bx, float by, float rad, float a) { for (int y = (int)(by - rad - 1); y <= by + rad + 1; y++) for (int x = (int)(bx - rad - 1); x <= bx + rad + 1; x++) { if (x < 0 || y < 0 || x >= s || y >= s) continue; float d = Mathf.Sqrt((x - bx) * (x - bx) + (y - by) * (y - by)) / rad; float n = Mathf.PerlinNoise(x * 0.11f + variant, y * 0.11f) * 0.5f; float v = Mathf.Clamp01((1.15f - d - n * 0.6f) * 3f) * a; int i = y * s + x; px[i].a = Mathf.Max(px[i].a, v); px[i].r = px[i].g = px[i].b = 1 - Mathf.Clamp01(d) * 0.35f; } }
+            Blob(cx, cy, s * 0.30f, 1f);
+            for (int k = 0; k < 7; k++) { float a = r() * Mathf.PI * 2, dd = s * (0.15f + r() * 0.2f); Blob(cx + Mathf.Cos(a) * dd, cy + Mathf.Sin(a) * dd, s * (0.06f + r() * 0.13f), 0.9f); }
+            for (int k = 0; k < 18; k++) { float a = r() * Mathf.PI * 2, dd = s * (0.25f + r() * 0.22f); Blob(cx + Mathf.Cos(a) * dd, cy + Mathf.Sin(a) * dd, s * (0.015f + r() * 0.035f), 0.85f); }
+        });
+        /// <summary>Weicher Tropfen (rund, weicher Rand) für Blutpartikel</summary>
+        public static Texture2D DropTex() => MakeTex("drop", 32, (px, s) => { for (int y = 0; y < s; y++) for (int x = 0; x < s; x++) { float d = Mathf.Sqrt((x - 15.5f) * (x - 15.5f) + (y - 15.5f) * (y - 15.5f)) / 15.5f; float a = Mathf.Clamp01((1 - d) * 2.2f); px[y * s + x] = new Color(1, 1, 1, a); } });
+        static Material decalBase;
+        /// <summary>HDRP-Decal-Grundmaterial (aus Resources, damit der Shader im Build enthalten ist)</summary>
+        public static Material DecalBase => decalBase ??= Resources.Load<Material>("Shaders/Decal");
         public static Texture2D GlowTex() => MakeTex("glow", 64, (px, s) =>
         {
             for (int y = 0; y < s; y++) for (int x = 0; x < s; x++) { float d = Mathf.Sqrt((x - 32) * (x - 32) + (y - 32) * (y - 32)) / 32f; float a = Mathf.Clamp01(1 - d); a = a * a; px[y * s + x] = new Color(1, 0.9f - d * 0.5f, 0.6f - d * 0.6f, a); }

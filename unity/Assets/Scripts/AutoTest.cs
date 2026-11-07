@@ -42,6 +42,9 @@ namespace ZA
             g.DebugPreviewZombies(true); yield return new WaitForSeconds(1.2f); yield return Shot("04b_zombies"); yield return new WaitForSeconds(0.8f);
             // Zombie-Schau: nähere Gruppen
             g.DebugPreviewZombies(true, new[] { "walker", "runner", "crawler" }, 3.2f, 1.5f, -0.12f); yield return new WaitForSeconds(1.0f); yield return Shot("04d_zombies_close1"); yield return new WaitForSeconds(0.7f); yield return Shot("04d_zombies_close1b");
+            // Todes-Schau: links normal, Mitte Kopfschuss, rechts Explosion
+            g.DebugKillPreview(); yield return new WaitForSeconds(0.25f); yield return Shot("04k_deaths_0"); yield return new WaitForSeconds(0.6f); yield return Shot("04k_deaths_1"); yield return new WaitForSeconds(1.2f); yield return Shot("04k_deaths_2"); yield return new WaitForSeconds(2.5f); yield return Shot("04k_deaths_3");
+            g.DebugLook(Mathf.PI, -0.45f); yield return new WaitForSeconds(0.3f); yield return Shot("04k_deaths_ground");
             g.DebugPreviewZombies(true, new[] { "spitter", "exploder", "brute" }, 3.6f, 1.7f, -0.1f); yield return new WaitForSeconds(1.0f); yield return Shot("04d_zombies_close2");
             g.DebugPreviewZombies(true, new[] { "boss" }, 4.5f, 1.7f, 0.05f); yield return new WaitForSeconds(1.0f); yield return Shot("04d_zombies_boss");
             // Waffen-Schau: jede Waffe einmal vor Zombie-Kulisse
@@ -57,11 +60,12 @@ namespace ZA
             g.DebugReady();
             yield return new WaitForSeconds(6);
             // Zombies kommen: in Richtung des nächsten Zombies schauen
-            for (int i = 0; i < 4; i++) { g.DebugFaceNearestZombie(); g.DebugFire(0.6f); yield return new WaitForSeconds(1.5f); yield return Shot("07_fight_" + i); }
+            for (int i = 0; i < 6; i++) { g.DebugFaceNearestZombie(); g.DebugFire(1.0f); yield return new WaitForSeconds(1.4f); yield return Shot("07_fight_" + i); }
             g.DebugThrowGrenade(); yield return new WaitForSeconds(1.2f); yield return Shot("08_grenade");
             g.DebugMelee(); yield return new WaitForSeconds(0.2f); yield return Shot("09_melee"); DumpNear();
             g.DebugThirdPerson(true); yield return new WaitForSeconds(0.8f); yield return Shot("10_thirdperson"); g.DebugFire(0.4f); yield return new WaitForSeconds(0.5f); yield return Shot("11_thirdperson_fire");
             File.WriteAllText(Path.Combine(dir, "state.txt"), g.DebugState());
+            File.WriteAllText(Path.Combine(dir, "walls.txt"), g.DebugWallTest());
             yield return new WaitForSeconds(0.5f);
             Application.Quit();
         }

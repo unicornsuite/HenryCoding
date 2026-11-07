@@ -10,7 +10,7 @@ namespace ZA
     {
         public int id; public string type; public ZombieDef cfg; public CharRig rig; public GameObject go;
         public float x, z, rot, tx, tz, trot, hp = 100, phase, seed, atkT, flash, rise, groanT, walk, deathT, bigDeath = -99, flinch, lastHp = 100;
-        public bool dying, wasFrozen;
+        public bool dying, wasFrozen, headless; public float spurtT, poolT = -1, poolSize;
         public HealthBar bar; public List<Collider> boxes = new List<Collider>();
         // realistischer Zombie (gekauftes Modell + Animator)
         public bool real; public Animator anim; public List<Material> mats = new List<Material>(); public Material glowMat; public float lastAtk, spitTrig, hitCd; public Transform headBone;
@@ -117,16 +117,18 @@ namespace ZA
             z.dying = true; z.deathT = 0; z.bar.gameObject.SetActive(false);
             foreach (var b in z.boxes) b.enabled = false;
             var p = new Vector3(z.x, 1.2f * z.cfg.scale, z.z);
-            fx.Blood(p, null, true);
             if (z.real)
             {
-                var cols0 = new[] { U.C("#6b7f4a"), U.C("#4a3a2a"), U.C("#8b0000") };
-                if (head && z.headBone) { fx.Gibs(z.headBone.position, new[] { U.C("#6b7f4a"), U.C("#8b0000") }, 9, 4); z.headBone.localScale = Vector3.zero; }
-                if (big || (T - z.bigDeath < 0.4f)) { fx.Gibs(p, cols0, 14, 7); z.go.SetActive(false); z.deathT = 3; }
-                else if (z.anim) z.anim.SetTrigger("Die");
+                bool gore = big || (T - z.bigDeath < 0.4f);
+                z.headless = head && z.headBone;
+                if (z.headless) { fx.Blood(z.headBone.position, Vector3.up, true); fx.Splat(z.headBone.position, Vector3.up, 1.2f, 1f); z.headBone.localScale = Vector3.zero; z.spurtT = 1.3f; }
+                else fx.Blood(p, null, false);
+                if (gore) { fx.Gore(p, 16, 7); z.go.SetActive(false); z.deathT = 3; }
+                else { if (z.anim) z.anim.SetTrigger("Die"); z.poolT = 0.9f + Random.value * 0.6f; }
                 if (Random.value < 0.5f) sfx.Groan(p, z.type == "boss" ? 0.5f : 1.3f);
                 return;
             }
+            fx.Blood(p, null, true);
             var cols = new[] { U.C(z.cfg.skin), U.C(z.cfg.shirt), U.C(z.cfg.pants) };
             if (head) { z.rig.head.gameObject.SetActive(false); var hp = z.rig.headMesh.position; fx.Gibs(hp, new[] { U.C(z.cfg.skin), U.C(z.cfg.skin), U.C("#8b0000") }, 9, 4); fx.Burst(hp, U.C(z.cfg.eyes), 5, 3, 0.07f, 0.5f); }
             if (big || (T - z.bigDeath < 0.4f)) { fx.Gibs(p, cols, 14, 7); z.go.SetActive(false); z.deathT = 3; }
@@ -188,9 +190,10 @@ namespace ZA
             if (z.dying)
             {
                 z.deathT += dt;
-                if (z.headBone && z.headBone.localScale == Vector3.zero) z.headBone.localScale = Vector3.zero; // Kopf bleibt weg
-                if (z.deathT > 2.5f) z.go.transform.position += Vector3.down * dt * 0.7f;
-                if (z.deathT > 4.2f) RemoveZombie(z);
+                if (z.headless && z.headBone) { z.headBone.localScale = Vector3.zero; if (z.spurtT > 0) { z.spurtT -= dt; fx.BloodSpurt(z.headBone.position, (Vector3.up + z.go.transform.forward * 0.3f).normalized, Mathf.Clamp01(z.spurtT) * 1.2f); } }
+                if (z.poolT > 0) { z.poolT -= dt; if (z.poolT <= 0) fx.GroundSplat(z.go.transform.position + z.go.transform.forward * 0.4f * s, (1.3f + Random.value * 0.7f) * s, 2.5f); }
+                if (z.deathT > 6f) z.go.transform.position += Vector3.down * dt * 0.5f;
+                if (z.deathT > 8f) RemoveZombie(z);
                 return;
             }
             float ox = z.x, oz = z.z;
