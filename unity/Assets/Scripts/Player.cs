@@ -24,6 +24,14 @@ namespace ZA
         public Vector3 realOffset = Vector3.zero; public float realScale = 0.22f, realYaw = 180f;
         static readonly Dictionary<string, Vector3> RealOffsets = new Dictionary<string, Vector3> { { "launcher", new Vector3(0, 0.05f, 0) } };
         Quaternion RealRot => Quaternion.Euler(0, realYaw, 0);
+        /// <summary>Diagnose für den Selbsttest: Animator-Zustand des echten Waffenmodells</summary>
+        public string DebugAnimState()
+        {
+            if (!realAnim) return "-";
+            var st = realAnim.GetCurrentAnimatorStateInfo(0);
+            string cur = "?"; foreach (var n in RealStates) if (st.IsName(n)) cur = n;
+            return $"state={realState} anim={cur} t={st.normalizedTime:0.00} trans={realAnim.IsInTransition(0)} rootPos={realGun.transform.localPosition:F3} rootScale={realGun.transform.localScale.x:0.00}";
+        }
         /// <summary>Kalibrierung per Selbsttest: Drehung/Skalierung des echten Waffenmodells live ändern</summary>
         public void DebugVm(float yaw, float scale)
         {
@@ -101,6 +109,10 @@ namespace ZA
                 if (realAnim) { realAnim.cullingMode = AnimatorCullingMode.AlwaysAnimate; realAnim.applyRootMotion = false; }
                 foreach (var t in realGun.GetComponentsInChildren<Transform>(true)) { string n = t.name.ToLowerInvariant(); if (realMuzzle == null && (n == "firespot" || n.Contains("muzzle") || n.Contains("flash") || n.Contains("barrel end"))) realMuzzle = t; }
                 foreach (var t in realGun.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = Layers.ViewModel;
+                // Skinned-Mesh-Bounds der Packs liegen beim Verkleinern teils hinter der Kamera -> sonst weggecullt (unsichtbare Waffe)
+                // Keine Objekt-Bewegungsvektoren am Waffenmodell (keine Bewegungsunschärfe an der Waffe)
+                foreach (var smr in realGun.GetComponentsInChildren<SkinnedMeshRenderer>(true)) { smr.updateWhenOffscreen = true; smr.skinnedMotionVectors = false; }
+                foreach (var r in realGun.GetComponentsInChildren<Renderer>(true)) r.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
                 realActive = true; gun.root.SetActive(false); realState = "";
             }
         }

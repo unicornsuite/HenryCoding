@@ -83,14 +83,19 @@ namespace ZA
         public void DebugMap(string id) { net.Send("t", "map", "map", id); }
         bool debugPause;
         /// <summary>Stellt lokal alle Zombietypen vor die Kamera (nur Optik)</summary>
-        public void DebugPreviewZombies(bool on)
+        public void DebugPreviewZombies(bool on, string[] types = null, float dist = 6.5f, float spacing = 1.8f, float pitch = -0.08f)
         {
             debugPause = on;
-            if (!on) { foreach (var z in ents.zombies.Values.ToList()) if (z.id >= 9000) ents.RemoveZombie(z); return; }
-            var p = player.Pos; player.yaw = 0; player.pitch = -0.08f;
-            string[] types = { "walker", "runner", "crawler", "spitter", "exploder", "brute", "boss" };
-            for (int i = 0; i < types.Length; i++) { var z = ents.CreateZombie(9000 + i, types[i], p.x - 5.4f + i * 1.8f, p.z - 6.5f - (i == 6 ? 2.5f : 0), 0, false); z.walk = 0.6f; z.atkT = i == 1 ? 0.5f : 0; }
+            foreach (var z in ents.zombies.Values.ToList()) if (z.id >= 9000) ents.RemoveZombie(z);
+            if (!on) return;
+            var p = player.Pos; player.yaw = Mathf.PI; player.pitch = pitch; // Blick vom Shop weg in die offene Stadt
+            types ??= new[] { "walker", "runner", "crawler", "spitter", "exploder", "brute", "boss" };
+            float x0 = -(types.Length - 1) * spacing / 2;
+            for (int i = 0; i < types.Length; i++) { var z = ents.CreateZombie(9000 + i, types[i], p.x - (x0 + i * spacing), p.z + dist + (types[i] == "boss" ? 2.5f : 0), Mathf.PI, false); z.walk = 0.6f; z.atkT = i % 2 == 1 ? 0.5f : 0; }
         }
+        /// <summary>Nur Optik: Waffenmodell wechseln (ohne Server)</summary>
+        public string DebugAnimState() => player.DebugAnimState();
+        public void DebugWeapon(string id) { player.BuildViewmodel(id, upg.TryGetValue(id, out var t) ? t : 0, myColor); player.SetVmVisible(true); }
         public void DebugLook(float yaw, float pitch) { player.yaw = yaw; player.pitch = pitch; }
         public void DebugOpenShop() { OpenShop(); }
         public void DebugShopTab(string tab) { ui.shopTab = tab; RefreshShop(); }
