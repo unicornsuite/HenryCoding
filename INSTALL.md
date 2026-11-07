@@ -16,7 +16,7 @@ Mitspieler im selben WLAN brauchen für die Browser-Version gar nichts zu instal
 1. **Node.js** installieren (LTS-Version): <https://nodejs.org>
 2. Repository holen:
    ```bash
-   git clone https://github.com/HenryCoding/zombie-ansturm.git
+   git clone https://github.com/unicornsuite/zombie-ansturm.git
    cd zombie-ansturm
    npm install
    ```
