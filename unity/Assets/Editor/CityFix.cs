@@ -26,7 +26,7 @@ namespace ZA
         }
 
         /// <summary>Große Objekte (Gebäude), deren Unterkante über dem höchsten Bodenpunkt ihrer Grundfläche schwebt, absenken</summary>
-        static int Settle()
+        public static int Settle()
         {
             int groundMask = 1 << Layers.Ground, solidMask = 1 << Layers.Solid, count = 0;
             var rends = Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None).Where(r => r.enabled && r.gameObject.activeInHierarchy && !(r is ParticleSystemRenderer) && !r.GetComponentInParent<Terrain>()).ToList();
@@ -54,7 +54,7 @@ namespace ZA
         }
 
         /// <summary>Ersetzt die Meshes nicht-konvexer Mesh-Kollider durch Kopien mit beidseitigen Dreiecken</summary>
-        static int DoubleSideColliders()
+        public static int DoubleSideColliders()
         {
             Directory.CreateDirectory(ColDir);
             var cache = new Dictionary<Mesh, Mesh>(); int count = 0;
@@ -64,7 +64,7 @@ namespace ZA
                 if (src.name.EndsWith("_ds")) continue;
                 if (!cache.TryGetValue(src, out var ds))
                 {
-                    string path = $"{ColDir}/{Sanitize(src.name)}_{src.GetInstanceID() & 0xffff:x4}_ds.asset";
+                    string path = $"{ColDir}/{Sanitize(src.name)}_{src.vertexCount}_{src.triangles.Length}_ds.asset"; // stabiler Name, damit ein erneuter Export dieselben Dateien wiederverwendet
                     ds = AssetDatabase.LoadAssetAtPath<Mesh>(path);
                     if (ds == null)
                     {
