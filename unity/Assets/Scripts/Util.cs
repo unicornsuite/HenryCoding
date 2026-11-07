@@ -317,8 +317,18 @@ namespace ZA
         }
 
         // ------------------------------------------------------------------ Beschriftungen (World-Space-Canvas, funktioniert in HDRP)
-        static Font font;
-        public static Font Font => font ??= Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        static Font font, headFont; static bool fontIsOs;
+        /// <summary>Fließtext: schmale System-Schrift (macOS), sonst Unity-Standard</summary>
+        public static Font Font { get { if (font == null) { font = OsFont(new[] { "Avenir Next Condensed Demi Bold", "Avenir Next Condensed Medium", "Helvetica Neue Condensed Bold", "Arial Narrow" }, 18); fontIsOs = font != null; if (font == null) font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } return font; } }
+        public static bool FontIsOs { get { var _ = Font; return fontIsOs; } }
+        /// <summary>Überschriften: harte, schmale Schrift im Militär-/Schablonenstil</summary>
+        public static Font HeadFont => headFont ??= OsFont(new[] { "DIN Condensed Bold", "DIN Condensed", "Impact", "Arial Black" }, 48) ?? Font;
+        static Font OsFont(string[] names, int size)
+        {
+            try { var avail = new HashSet<string>(Font.GetOSInstalledFontNames()); foreach (var n in names) if (avail.Contains(n)) { var f = Font.CreateDynamicFontFromOSFont(n, size); if (f) return f; } }
+            catch (System.Exception e) { Debug.LogWarning("Systemschrift nicht verfügbar: " + e.Message); }
+            return null;
+        }
         public static TextMesh Label(Transform parent, string text, Color color, float y, float size = 0.3f)
         {
             var g = new GameObject("label"); g.transform.SetParent(parent, false); g.transform.localPosition = new Vector3(0, y, 0);

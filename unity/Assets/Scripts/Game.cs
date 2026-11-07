@@ -28,6 +28,7 @@ namespace ZA
         List<string> owned = new List<string> { "pistol" }; string weapon = "pistol"; readonly Dictionary<string, (int mag, int res)> ammo = new Dictionary<string, (int, int)>();
         Dictionary<string, int> upg = new Dictionary<string, int>(); List<string> perks = new List<string>(); int nades;
         float fireCd, meleeCd; int streak; float lastKill = -9;
+        Music music;
         // Snapshot
         int wave, left, genHp = 2500; string phase = "prep"; float timer; float[] pu = new float[3];
         // Platzieren
@@ -51,7 +52,7 @@ namespace ZA
             if (cam == null) { var cg = new GameObject("Main Camera"); cg.tag = "MainCamera"; cam = cg.AddComponent<Camera>(); cg.AddComponent<AudioListener>(); }
             cam.nearClipPlane = 0.05f; cam.farClipPlane = 700; cam.fieldOfView = fov;
             LoadSettings();
-            ui = new UI(); fx = new Effects(cam); sfx = new Sfx { volume = vol, listener = cam.transform }; ents = new Entities(fx, sfx, cam) { playerInfo = id => { var p = lobbyPlayers.Find(q => q.id == id); return p.id == id ? (p.name, p.color) : ("Spieler", "#9e9e9e"); } };
+            ui = new UI(); fx = new Effects(cam); sfx = new Sfx { volume = vol, listener = cam.transform }; music = new Music { volume = vol }; ents = new Entities(fx, sfx, cam) { playerInfo = id => { var p = lobbyPlayers.Find(q => q.id == id); return p.id == id ? (p.name, p.color) : ("Spieler", "#9e9e9e"); } };
             player = new Player(cam);
             ApplyQuality();
             SetupPostProcessing();
@@ -106,7 +107,7 @@ namespace ZA
         public void DebugMelee() { MeleeAttack(); }
         public void DebugThirdPerson(bool on) { player.SetThirdPerson(on); }
         public void DebugVm(float yaw, float scale) { player.DebugVm(yaw, scale); }
-        public string DebugState() => $"wave={wave} phase={phase} hp={hp} money={money} kills={kills} zombies={ents.zombies.Count} remotes={ents.remotes.Count} weapon={weapon} mag={ammo[weapon].mag} pos={player.Pos} fps={1f / Time.smoothDeltaTime:0}";
+        public string DebugState() => $"music[{music?.State}] wave={wave} phase={phase} hp={hp} money={money} kills={kills} zombies={ents.zombies.Count} remotes={ents.remotes.Count} weapon={weapon} mag={ammo[weapon].mag} pos={player.Pos} fps={1f / Time.smoothDeltaTime:0}";
 
         void SetupPostProcessing()
         {
@@ -143,7 +144,7 @@ namespace ZA
             switch (key)
             {
                 case "sens": sens = Mathf.Clamp(sens + dir * 0.1f, 0.2f, 3f); break;
-                case "vol": vol = Mathf.Clamp01(vol + dir * 0.1f); sfx.volume = vol; break;
+                case "vol": vol = Mathf.Clamp01(vol + dir * 0.1f); sfx.volume = vol; music.volume = vol; break;
                 case "fov": fov = Mathf.Clamp(fov + dir * 2, 60, 100); cam.fieldOfView = fov; break;
                 case "quality": var qs = new[] { "low", "medium", "high" }; int i = Mathf.Clamp(Array.IndexOf(qs, quality) + dir, 0, 2); quality = qs[i]; if (ents != null) ApplyQuality(); break;
             }
@@ -163,6 +164,7 @@ namespace ZA
         float reconnectT;
         void Update()
         {
+            music?.Update(Time.unscaledDeltaTime, inGame, phase == "wave", ui.bossBarGo && ui.bossBarGo.activeSelf, gameOver);
             float dt = Mathf.Min(0.05f, Time.deltaTime); T += dt;
             // Netzwerk
             while (net.TryReceive(out var m)) OnMsg(m);
@@ -217,7 +219,8 @@ namespace ZA
             }
             ents.T = T; ents.UpdateZombies(dt); lobbyWorld.Update(dt); fx.Update(dt);
             float ca = t * 0.08f; float camR = 16;
-            cam.transform.position = new Vector3(m.gen.x + Mathf.Cos(ca) * camR, 5.5f + Mathf.Sin(t * 0.3f) * 0.6f, m.gen.y + Mathf.Sin(ca) * camR);
+            float cx = m.gen.x + Mathf.Cos(ca) * camR, cz = m.gen.y + Mathf.Sin(ca) * camR;
+            cam.transform.position = new Vector3(cx, World.GroundY(cx, cz) + 5.5f + Mathf.Sin(t * 0.3f) * 0.6f, cz);
             cam.transform.LookAt(new Vector3(m.gen.x, 1.8f, m.gen.y));
             cam.fieldOfView = 60;
         }
@@ -835,7 +838,7 @@ namespace ZA
             ui.lowHp.color = new Color(0.55f, 0, 0, hp < 35 && state == "alive" ? (1 - hp / 35f) * 0.5f : 0);
             ui.freezeOverlay.color = new Color(0.4f, 0.78f, 1, pu[2] > 0 ? 0.25f : 0);
             var a = ammo[weapon]; ui.wname.text = w.name; ui.wname.color = w.tier > 0 ? U.C(D.upgrade.colors[w.tier]) : UI.Accent;
-            ui.ammoText.text = a.mag.ToString(); ui.ammoText.color = a.mag <= Mathf.CeilToInt(w.mag * 0.25f) ? UI.Red : Color.white; ui.reserveText.text = weapon == "pistol" ? "/ ∞" : "/ " + a.res;
+            ui.ammoText.text = a.mag.ToString(); ui.ammoText.color = a.mag <= Mathf.CeilToInt(w.mag * 0.25f) ? UI.Red : UI.Bone; ui.reserveText.text = weapon == "pistol" ? "/ ∞" : "/ " + a.res;
             UI.Show(ui.reloadText.gameObject, player.reloadT > 0);
             ui.slotsText.text = string.Join("  ", owned.Select(id => { var wd = D.weapon[id]; int t = upg.TryGetValue(id, out var tt) ? tt : 0; string s = $"{wd.slot} {(id == weapon ? "<color=#ffca28><b>" : "")}{wd.name}{(t > 0 ? " " + D.upgrade.names[t] : "")}{(id == weapon ? "</b></color>" : "")}"; return s; }));
             ui.gearText.text = $"💣 {nades}   {string.Join(" ", perks.Select(p => D.perk[p].icon))}";

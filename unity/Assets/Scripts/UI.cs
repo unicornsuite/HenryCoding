@@ -11,7 +11,8 @@ namespace ZA
     {
         public Canvas canvas; Transform root;
         static GameData D => GameData.I;
-        public static readonly Color Accent = U.C("#ffca28"), Red = U.C("#ff3d3d"), Green = U.C("#66bb6a"), Blue = U.C("#42a5f5"), Panel = new Color(0.08f, 0.09f, 0.13f, 0.94f), Txt = U.C("#f5f5f5"), Grey = U.C("#b0bec5");
+        // Düstere, entsättigte Palette (Messing, getrocknetes Blut, Olivgrün, Stahl, Knochenweiß) statt der Comic-Farben
+        public static readonly Color Accent = U.C("#c8963e"), Red = U.C("#b4332a"), Green = U.C("#7d8f4f"), Blue = U.C("#6a8ba3"), Panel = new Color(0.07f, 0.065f, 0.06f, 0.94f), Txt = U.C("#e6dfd0"), Grey = U.C("#9a948a"), Bone = U.C("#e6dfd0");
         static readonly Dictionary<string, string> WeaponIcon = new Dictionary<string, string> { ["pistol"] = "🔫", ["smg"] = "💨", ["shotgun"] = "💥", ["rifle"] = "🎖", ["sniper"] = "🎯", ["launcher"] = "💣", ["minigun"] = "⚙" };
 
         // Lobby
@@ -49,9 +50,16 @@ namespace ZA
         { var rt = Rect(parent, name, aMin, aMax, oMin, oMax); var i = rt.gameObject.AddComponent<Image>(); i.color = c; i.raycastTarget = raycast; return i; }
         public static Text Txt2(Transform parent, string name, string text, int size, Color c, TextAnchor anchor, Vector2 aMin, Vector2 aMax, Vector2 oMin, Vector2 oMax, FontStyle style = FontStyle.Bold)
         {
-            var rt = Rect(parent, name, aMin, aMax, oMin, oMax); var t = rt.gameObject.AddComponent<Text>(); t.font = U.Font; t.fontSize = size; t.color = c; t.alignment = anchor; t.text = text; t.fontStyle = style; t.raycastTarget = false;
+            var rt = Rect(parent, name, aMin, aMax, oMin, oMax); var t = rt.gameObject.AddComponent<Text>(); t.font = U.Font; t.fontSize = size; t.color = c; t.alignment = anchor; t.text = text; t.fontStyle = U.FontIsOs && style == FontStyle.Bold ? FontStyle.Normal : style; t.raycastTarget = false;
             t.horizontalOverflow = HorizontalWrapMode.Wrap; t.verticalOverflow = VerticalWrapMode.Overflow;
             var sh = rt.gameObject.AddComponent<Shadow>(); sh.effectColor = new Color(0, 0, 0, 0.9f); sh.effectDistance = new Vector2(1.5f, -1.5f);
+            return t;
+        }
+        /// <summary>Überschriften-Schrift (Schablonenstil) mit dunkler Kontur</summary>
+        public static Text Head(Text t)
+        {
+            t.font = U.HeadFont; t.fontStyle = FontStyle.Normal; t.fontSize = Mathf.RoundToInt(t.fontSize * (U.HeadFont == U.Font ? 1f : 1.18f));
+            if (!t.GetComponent<Outline>()) { var ol = t.gameObject.AddComponent<Outline>(); ol.effectColor = new Color(0, 0, 0, 0.85f); ol.effectDistance = new Vector2(1.5f, -1.5f); }
             return t;
         }
         public static Button Btn(Transform parent, string label, Color bg, Action onClick, Vector2 aMin, Vector2 aMax, Vector2 oMin, Vector2 oMax, int size = 18, Color? fg = null)
@@ -65,7 +73,7 @@ namespace ZA
         }
         static InputField Field(Transform parent, string placeholder, Vector2 aMin, Vector2 aMax, Vector2 oMin, Vector2 oMax, int size = 20)
         {
-            var img = Img(parent, "field", U.C("#eceff1"), aMin, aMax, oMin, oMax, true);
+            var img = Img(parent, "field", U.C("#d9d2c3"), aMin, aMax, oMin, oMax, true);
             var f = img.gameObject.AddComponent<InputField>(); f.targetGraphic = img;
             var t = Txt2(img.transform, "text", "", size, Color.black, TextAnchor.MiddleLeft, Vector2.zero, Vector2.one, new Vector2(10, 2), new Vector2(-10, -2), FontStyle.Normal); t.supportRichText = false;
             var p = Txt2(img.transform, "ph", placeholder, size, new Color(0, 0, 0, 0.4f), TextAnchor.MiddleLeft, Vector2.zero, Vector2.one, new Vector2(10, 2), new Vector2(-10, -2), FontStyle.Italic);
@@ -114,16 +122,17 @@ namespace ZA
             lobby = Rect(root, "Lobby", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
             lobbyGroup = lobby.AddComponent<CanvasGroup>();
             // dunkler Verlauf über der 3D-Szene (links kräftiger, damit Text lesbar bleibt)
-            lobbyDim = Img(lobby.transform, "dim", new Color(0.02f, 0.03f, 0.06f, 0.55f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, true);
-            Img(lobby.transform, "dim2", new Color(0.02f, 0.03f, 0.06f, 0.35f), new Vector2(0, 0), new Vector2(0.5f, 1), Vector2.zero, Vector2.zero);
+            lobbyDim = Img(lobby.transform, "dim", new Color(0.02f, 0.02f, 0.02f, 0.55f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, true);
+            Img(lobby.transform, "dim2", new Color(0.02f, 0.02f, 0.02f, 0.35f), new Vector2(0, 0), new Vector2(0.5f, 1), Vector2.zero, Vector2.zero);
             // Logo-Bereich oben
             var logoBg = RImg(lobby.transform, "logobg", new Color(0, 0, 0, 0.35f), new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-470, -150), new Vector2(470, -26));
-            var logo = Txt2(logoBg.transform, "logo", "<color=#9ccc65>ZOMBIE</color> <color=#ff5252>ANSTURM</color>", 76, Color.white, TextAnchor.MiddleCenter, new Vector2(0, 0), new Vector2(1, 1), new Vector2(0, 26), new Vector2(0, -4));
+            var logo = Txt2(logoBg.transform, "logo", "<color=#d8d0bf>ZOMBIE</color> <color=#a8362b>ANSTURM</color>", 76, Color.white, TextAnchor.MiddleCenter, new Vector2(0, 0), new Vector2(1, 1), new Vector2(0, 26), new Vector2(0, -4));
+            Head(logo);
             var lsh = logo.GetComponent<Shadow>(); lsh.effectDistance = new Vector2(4, -5); lsh.effectColor = new Color(0, 0, 0, 1);
             var ol = logo.gameObject.AddComponent<Outline>(); ol.effectColor = new Color(0, 0, 0, 0.9f); ol.effectDistance = new Vector2(2, -2);
-            Txt2(logoBg.transform, "tag", "KOOP-ZOMBIE-VERTEIDIGUNG  ·  BIS ZU 8 SPIELER  ·  BROWSER & UNITY ZUSAMMEN", 13, U.C("#cfd8dc"), TextAnchor.MiddleCenter, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 8), new Vector2(0, 30));
+            Txt2(logoBg.transform, "tag", "KOOP-ZOMBIE-VERTEIDIGUNG  ·  BIS ZU 8 SPIELER  ·  BROWSER & UNITY ZUSAMMEN", 13, U.C("#b8b1a4"), TextAnchor.MiddleCenter, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 8), new Vector2(0, 30));
             // linke Karte: Spieler & Verbindung
-            var L = RImg(lobby.transform, "left", new Color(0.07f, 0.09f, 0.13f, 0.88f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-560, -300), new Vector2(-180, 120), false, true);
+            var L = RImg(lobby.transform, "left", new Color(0.075f, 0.07f, 0.065f, 0.88f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-560, -300), new Vector2(-180, 120), false, true);
             var Lt = L.transform;
             SectionTitle(Lt, "👤  DU", -14);
             connText = Txt2(Lt, "conn", "Nicht verbunden", 13, Color.white, TextAnchor.MiddleRight, new Vector2(0.4f, 1), new Vector2(1, 1), new Vector2(0, -40), new Vector2(-16, -14));
@@ -133,18 +142,18 @@ namespace ZA
             SectionTitle(Lt, "👥  IN DER LOBBY", -252);
             playerList = Txt2(Lt, "plist", "", 15, Color.white, TextAnchor.UpperLeft, new Vector2(0, 0), new Vector2(1, 1), new Vector2(16, 100), new Vector2(-16, -282), FontStyle.Normal);
             var shareBg = RImg(Lt, "sharebg", new Color(0, 0, 0, 0.35f), new Vector2(0, 0), new Vector2(1, 0), new Vector2(12, 12), new Vector2(-12, 96), true);
-            shareText = Txt2(shareBg.transform, "share", "", 11, U.C("#b0bec5"), TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(10, 6), new Vector2(-10, -6), FontStyle.Normal);
+            shareText = Txt2(shareBg.transform, "share", "", 11, U.C("#9a948a"), TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(10, 6), new Vector2(-10, -6), FontStyle.Normal);
             // rechte Karte: Spiel
-            var R = RImg(lobby.transform, "right", new Color(0.07f, 0.09f, 0.13f, 0.88f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-160, -300), new Vector2(560, 120), false, true);
+            var R = RImg(lobby.transform, "right", new Color(0.075f, 0.07f, 0.065f, 0.88f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-160, -300), new Vector2(560, 120), false, true);
             var Rt = R.transform;
             SectionTitle(Rt, "🗺  KARTE", -14);
             mapRow = Rect(Rt, "maps", new Vector2(0, 1), new Vector2(1, 1), new Vector2(16, -192), new Vector2(-16, -44));
             SectionTitle(Rt, "⚔  SCHWIERIGKEIT", -202);
             diffRow = Rect(Rt, "diffs", new Vector2(0, 1), new Vector2(1, 1), new Vector2(16, -290), new Vector2(-16, -232));
-            startBtn = RBtn(Rt, "▶  SPIEL STARTEN", U.C("#43a047"), null, new Vector2(0, 0), new Vector2(1, 0), new Vector2(16, 24), new Vector2(-16, 90), 26); startBtnText = startBtn.GetComponentInChildren<Text>();
-            var so = startBtn.gameObject.AddComponent<Outline>(); so.effectColor = new Color(0.1f, 0.35f, 0.1f, 1); so.effectDistance = new Vector2(2, -2);
+            startBtn = RBtn(Rt, "▶  SPIEL STARTEN", U.C("#5a6b2e"), null, new Vector2(0, 0), new Vector2(1, 0), new Vector2(16, 24), new Vector2(-16, 90), 26); startBtnText = startBtn.GetComponentInChildren<Text>();
+            var so = startBtn.gameObject.AddComponent<Outline>(); so.effectColor = new Color(0.12f, 0.14f, 0.06f, 1); so.effectDistance = new Vector2(2, -2);
             // Einstellungen unten
-            var S = RImg(lobby.transform, "settings", new Color(0.07f, 0.09f, 0.13f, 0.85f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-560, -430), new Vector2(560, -312), false, true);
+            var S = RImg(lobby.transform, "settings", new Color(0.075f, 0.07f, 0.065f, 0.85f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-560, -430), new Vector2(560, -312), false, true);
             var St = S.transform;
             SectionTitle(St, "⚙  EINSTELLUNGEN", -10);
             sensText = SettingRow(St, "Maus", 0, -42, () => Game.I.AdjustSetting("sens", -1), () => Game.I.AdjustSetting("sens", 1));
@@ -154,14 +163,14 @@ namespace ZA
             Txt2(St, "keys", "WASD Laufen · Maus Umsehen · LMB Schießen · RMB Zielen · Leertaste Springen · Shift Sprint · R Nachladen · 1-7/Mausrad Waffe · B Shop · E Wiederbeleben/Kiste · G Granate · C Messer · V Ego-/Third-Person · N Bereit · T Chat · Tab Punkte · F Lampe · Q Abbrechen · Esc Pause", 11, U.C("#90a4ae"), TextAnchor.MiddleCenter, new Vector2(0, 0), new Vector2(1, 0), new Vector2(16, 6), new Vector2(-16, 30), FontStyle.Normal);
         }
         static void SectionTitle(Transform p, string text, float y) => Txt2(p, "sec", text, 15, Accent, TextAnchor.MiddleLeft, new Vector2(0, 1), new Vector2(1, 1), new Vector2(16, y - 22), new Vector2(-16, y));
-        static void RoundField(InputField f) { var img = f.GetComponent<Image>(); img.sprite = Rounded(true); img.type = Image.Type.Sliced; img.color = new Color(0.93f, 0.94f, 0.95f, 1); }
+        static void RoundField(InputField f) { var img = f.GetComponent<Image>(); img.sprite = Rounded(true); img.type = Image.Type.Sliced; img.color = new Color(0.85f, 0.82f, 0.76f, 1); }
         Text SettingRow(Transform p, string label, int col, float y, Action minus, Action plus)
         {
             float w = 0.25f, x0 = col * w;
             Txt2(p, "l", label, 13, Color.white, TextAnchor.MiddleLeft, new Vector2(x0, 1), new Vector2(x0 + w, 1), new Vector2(16, y - 28), new Vector2(-16, y), FontStyle.Normal);
-            RBtn(p, "–", U.C("#37474f"), minus, new Vector2(x0 + w * 0.45f, 1), new Vector2(x0 + w * 0.45f, 1), new Vector2(0, y - 28), new Vector2(30, y), 16);
+            RBtn(p, "–", U.C("#2e2b28"), minus, new Vector2(x0 + w * 0.45f, 1), new Vector2(x0 + w * 0.45f, 1), new Vector2(0, y - 28), new Vector2(30, y), 16);
             var v = Txt2(p, "v", "", 14, Accent, TextAnchor.MiddleCenter, new Vector2(x0 + w * 0.45f, 1), new Vector2(x0 + w, 1), new Vector2(32, y - 28), new Vector2(-48, y));
-            RBtn(p, "+", U.C("#37474f"), plus, new Vector2(x0 + w, 1), new Vector2(x0 + w, 1), new Vector2(-46, y - 28), new Vector2(-16, y), 16);
+            RBtn(p, "+", U.C("#2e2b28"), plus, new Vector2(x0 + w, 1), new Vector2(x0 + w, 1), new Vector2(-46, y - 28), new Vector2(-16, y), 16);
             return v;
         }
         static readonly Dictionary<string, (string icon, string color)> MapStyle = new Dictionary<string, (string, string)> { ["suburb"] = ("🏘", "#8fd3ff"), ["farm"] = ("🌽", "#ffb074"), ["base"] = ("🪖", "#a7b4c2"), ["graveyard"] = ("🪦", "#5c6bc0"), ["ruins"] = ("🏚", "#78909c") };
@@ -178,12 +187,12 @@ namespace ZA
             for (int i = 0; i < D.maps.Count; i++)
             {
                 int cols = D.maps.Count > 4 ? 3 : 2; var m = D.maps[i]; int col = i % cols, row = i / cols; float cw = 1f / cols; (string icon, string color) st = MapStyle.TryGetValue(m.id, out var ms) ? ms : ("🗺", "#90a4ae");
-                var b = RBtn(mapRow, "", new Color(0.15f, 0.19f, 0.24f, 1), () => onMap(m.id), new Vector2(col * cw, 1), new Vector2(col * cw + cw, 1), new Vector2(col == 0 ? 0 : 4, -row * 74 - 68), new Vector2(col == cols - 1 ? 0 : -4, -row * 74), 14);
+                var b = RBtn(mapRow, "", new Color(0.16f, 0.15f, 0.14f, 1), () => onMap(m.id), new Vector2(col * cw, 1), new Vector2(col * cw + cw, 1), new Vector2(col == 0 ? 0 : 4, -row * 74 - 68), new Vector2(col == cols - 1 ? 0 : -4, -row * 74), 14);
                 b.name = "map_" + m.id;
                 var stripe = RImg(b.transform, "stripe", U.C(st.color), new Vector2(0, 0), new Vector2(0, 1), new Vector2(0, 0), new Vector2(54, 0), true);
                 Txt2(stripe.transform, "ico", st.icon, 26, Color.white, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
                 Txt2(b.transform, "n", m.name, 17, Color.white, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(64, 4), new Vector2(-8, -6));
-                Txt2(b.transform, "d", m.desc, 11, U.C("#cfd8dc"), TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(64, 18), new Vector2(-8, -28), FontStyle.Normal);
+                Txt2(b.transform, "d", m.desc, 11, U.C("#b8b1a4"), TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(64, 18), new Vector2(-8, -28), FontStyle.Normal);
                 Txt2(b.transform, "rec", "", 11, Accent, TextAnchor.LowerLeft, Vector2.zero, Vector2.one, new Vector2(64, 5), new Vector2(-8, -40));
             }
             foreach (Transform c in diffRow) UnityEngine.Object.Destroy(c.gameObject);
@@ -191,17 +200,17 @@ namespace ZA
             for (int i = 0; i < D.diffs.Count; i++)
             {
                 var d = D.diffs[i]; float w = 1f / D.diffs.Count;
-                var b = RBtn(diffRow, "", U.C("#37474f"), () => onDiff(d.id), new Vector2(i * w, 0), new Vector2(i * w + w, 1), new Vector2(i == 0 ? 0 : 5, 0), new Vector2(i == D.diffs.Count - 1 ? 0 : -5, 0), 14);
+                var b = RBtn(diffRow, "", U.C("#2e2b28"), () => onDiff(d.id), new Vector2(i * w, 0), new Vector2(i * w + w, 1), new Vector2(i == 0 ? 0 : 5, 0), new Vector2(i == D.diffs.Count - 1 ? 0 : -5, 0), 14);
                 b.name = "diff_" + d.id;
                 Txt2(b.transform, "n", $"{(i < dIcons.Length ? dIcons[i] + " " : "")}{d.name}", 16, Color.white, TextAnchor.UpperCenter, Vector2.zero, Vector2.one, new Vector2(4, 2), new Vector2(-4, -6));
-                Txt2(b.transform, "d", d.desc, 10, U.C("#cfd8dc"), TextAnchor.LowerCenter, Vector2.zero, Vector2.one, new Vector2(4, 4), new Vector2(-4, -26), FontStyle.Normal);
+                Txt2(b.transform, "d", d.desc, 10, U.C("#b8b1a4"), TextAnchor.LowerCenter, Vector2.zero, Vector2.one, new Vector2(4, 4), new Vector2(-4, -26), FontStyle.Normal);
             }
         }
         public void RenderLobby(string mapId, string diffId, string myColor, List<(int id, string name, string color, bool inGame)> players, int myId, List<string> urls, bool gameRunning, Func<string, string, int> best)
         {
             foreach (Transform c in colorRow) { int i = int.Parse(c.name.Substring(4)); bool on = D.playerColors[i] == myColor; c.Find("chk").gameObject.SetActive(on); c.localScale = Vector3.one * (on ? 1.12f : 1f); }
-            foreach (Transform c in mapRow) { bool on = c.name == "map_" + mapId; c.GetComponent<Image>().color = on ? new Color(0.25f, 0.32f, 0.4f, 1) : new Color(0.15f, 0.19f, 0.24f, 1); var o = c.GetComponent<Outline>() ?? c.gameObject.AddComponent<Outline>(); o.effectColor = on ? Accent : new Color(0, 0, 0, 0); o.effectDistance = new Vector2(3, -3); c.GetComponent<Button>().interactable = !gameRunning; var id = c.name.Substring(4); int b = best(id, diffId); c.Find("rec").GetComponent<Text>().text = b > 0 ? "🏆 Rekord: Welle " + b : "Noch kein Rekord"; }
-            foreach (Transform c in diffRow) { bool on = c.name == "diff_" + diffId; c.GetComponent<Image>().color = on ? Accent : U.C("#37474f"); c.Find("n").GetComponent<Text>().color = on ? Color.black : Color.white; c.Find("d").GetComponent<Text>().color = on ? new Color(0.2f, 0.2f, 0.2f) : U.C("#cfd8dc"); c.GetComponent<Button>().interactable = !gameRunning; }
+            foreach (Transform c in mapRow) { bool on = c.name == "map_" + mapId; c.GetComponent<Image>().color = on ? new Color(0.36f, 0.3f, 0.2f, 1) : new Color(0.16f, 0.15f, 0.14f, 1); var o = c.GetComponent<Outline>() ?? c.gameObject.AddComponent<Outline>(); o.effectColor = on ? Accent : new Color(0, 0, 0, 0); o.effectDistance = new Vector2(3, -3); c.GetComponent<Button>().interactable = !gameRunning; var id = c.name.Substring(4); int b = best(id, diffId); c.Find("rec").GetComponent<Text>().text = b > 0 ? "🏆 Rekord: Welle " + b : "Noch kein Rekord"; }
+            foreach (Transform c in diffRow) { bool on = c.name == "diff_" + diffId; c.GetComponent<Image>().color = on ? Accent : U.C("#2e2b28"); c.Find("n").GetComponent<Text>().color = on ? Color.black : Color.white; c.Find("d").GetComponent<Text>().color = on ? new Color(0.2f, 0.2f, 0.2f) : U.C("#b8b1a4"); c.GetComponent<Button>().interactable = !gameRunning; }
             var sb = new System.Text.StringBuilder();
             foreach (var p in players) sb.Append($"<color={p.color}>●</color> {p.name}{(p.id == myId ? " <color=#90a4ae>(du)</color>" : "")}  <color=#90a4ae>{(p.inGame ? "· im Spiel" : "· Lobby")}</color>\n");
             if (players.Count == 0) sb.Append("<color=#90a4ae>Noch niemand da …</color>");
@@ -246,11 +255,11 @@ namespace ZA
             hitmarker = Img(H, "hitmarker", new Color(1, 1, 1, 0), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-16, -16), new Vector2(16, 16)); hitmarker.rectTransform.localEulerAngles = new Vector3(0, 0, 45);
             var hmt = Txt2(hitmarker.transform, "x", "✕", 30, Color.white, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero); hitmarker.color = new Color(0, 0, 0, 0);
             // Oben
-            waveText = Txt2(H, "wave", "VORBEREITUNG", 36, Red, TextAnchor.MiddleCenter, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-240, -54), new Vector2(240, -8));
+            waveText = Head(Txt2(H, "wave", "VORBEREITUNG", 36, Bone, TextAnchor.MiddleCenter, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-240, -54), new Vector2(240, -8)));
             statusText = Txt2(H, "status", "", 16, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-240, -80), new Vector2(240, -54));
-            Bar(H, U.C("#26a69a"), new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-230, -100), new Vector2(230, -84), out genBar);
+            Bar(H, U.C("#6e7a3c"), new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-230, -100), new Vector2(230, -84), out genBar);
             genText = Txt2(genBar.transform.parent, "gt", "⚡ GENERATOR 100%", 11, Color.white, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            bossBarGo = Bar(H, U.C("#8e24aa"), new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-230, -126), new Vector2(230, -106), out bossBar).gameObject;
+            bossBarGo = Bar(H, U.C("#7a1f1f"), new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-230, -126), new Vector2(230, -106), out bossBar).gameObject;
             Txt2(bossBarGo.transform, "bt", "☠ KOLOSS", 13, Color.white, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero); Show(bossBarGo, false);
             powerupText = Txt2(H, "pu", "", 14, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(-300, -158), new Vector2(300, -128));
             // Team links oben
@@ -260,9 +269,9 @@ namespace ZA
             var mmRt = Rect(mmBg.transform, "img", Vector2.zero, Vector2.one, new Vector2(2, 2), new Vector2(-2, -2)); minimap = mmRt.gameObject.AddComponent<RawImage>(); minimap.raycastTarget = false;
             feedText = Txt2(H, "feed", "", 13, Color.white, TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-330, -360), new Vector2(-12, -196));
             // Mitte
-            announceBig = Txt2(H, "annB", "", 70, Red, TextAnchor.MiddleCenter, new Vector2(0, 0.62f), new Vector2(1, 0.62f), new Vector2(0, -40), new Vector2(0, 50));
+            announceBig = Head(Txt2(H, "annB", "", 64, Bone, TextAnchor.MiddleCenter, new Vector2(0, 0.62f), new Vector2(1, 0.62f), new Vector2(0, -40), new Vector2(0, 50)));
             announceSmall = Txt2(H, "annS", "", 22, Color.white, TextAnchor.MiddleCenter, new Vector2(0, 0.62f), new Vector2(1, 0.62f), new Vector2(0, -80), new Vector2(0, -40));
-            streakText = Txt2(H, "streak", "", 44, Accent, TextAnchor.MiddleCenter, new Vector2(0, 0.64f), new Vector2(1, 0.64f), new Vector2(0, 50), new Vector2(0, 110));
+            streakText = Head(Txt2(H, "streak", "", 40, Accent, TextAnchor.MiddleCenter, new Vector2(0, 0.64f), new Vector2(1, 0.64f), new Vector2(0, 50), new Vector2(0, 110)));
             promptText = Txt2(H, "prompt", "", 18, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.38f), new Vector2(0.5f, 0.38f), new Vector2(-300, -18), new Vector2(300, 18));
             progressGo = Bar(H, Green, new Vector2(0.5f, 0.38f), new Vector2(0.5f, 0.38f), new Vector2(-120, -46), new Vector2(120, -34), out progressBar).gameObject; Show(progressGo, false);
             placeHint = Txt2(H, "place", "", 16, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.22f), new Vector2(0.5f, 0.22f), new Vector2(-400, -20), new Vector2(400, 20));
@@ -270,23 +279,23 @@ namespace ZA
             var cbg = Img(crateUi.transform, "bg", new Color(0, 0, 0, 0.7f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero); cbg.gameObject.AddComponent<Outline>().effectColor = Accent; cbg.gameObject.AddComponent<Outline>().effectDistance = new Vector2(3, -3);
             crateText = Txt2(crateUi.transform, "t", "🔫", 50, Color.white, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero); Show(crateUi, false);
             // Unten links
-            moneyText = Txt2(H, "money", "$ 0", 34, U.C("#69f0ae"), TextAnchor.LowerLeft, new Vector2(0, 0), new Vector2(0, 0), new Vector2(14, 72), new Vector2(300, 116));
+            moneyText = Head(Txt2(H, "money", "$ 0", 34, U.C("#c9b26a"), TextAnchor.LowerLeft, new Vector2(0, 0), new Vector2(0, 0), new Vector2(14, 72), new Vector2(300, 116)));
             Txt2(H, "hpi", "❤", 16, Color.white, TextAnchor.MiddleLeft, new Vector2(0, 0), new Vector2(0, 0), new Vector2(14, 42), new Vector2(40, 64));
-            Bar(H, U.C("#e53935"), new Vector2(0, 0), new Vector2(0, 0), new Vector2(40, 44), new Vector2(240, 62), out hpBar); hpText = Txt2(H, "hpt", "100", 16, Color.white, TextAnchor.MiddleRight, new Vector2(0, 0), new Vector2(0, 0), new Vector2(244, 42), new Vector2(290, 64));
+            Bar(H, U.C("#9e2b22"), new Vector2(0, 0), new Vector2(0, 0), new Vector2(40, 44), new Vector2(240, 62), out hpBar); hpText = Txt2(H, "hpt", "100", 16, Color.white, TextAnchor.MiddleRight, new Vector2(0, 0), new Vector2(0, 0), new Vector2(244, 42), new Vector2(290, 64));
             Txt2(H, "ari", "🛡", 16, Color.white, TextAnchor.MiddleLeft, new Vector2(0, 0), new Vector2(0, 0), new Vector2(14, 16), new Vector2(40, 38));
-            Bar(H, U.C("#1e88e5"), new Vector2(0, 0), new Vector2(0, 0), new Vector2(40, 18), new Vector2(240, 36), out armorBar); armorBar.fillAmount = 0; armorText = Txt2(H, "art", "0", 16, Color.white, TextAnchor.MiddleRight, new Vector2(0, 0), new Vector2(0, 0), new Vector2(244, 16), new Vector2(290, 38));
+            Bar(H, U.C("#5f7c93"), new Vector2(0, 0), new Vector2(0, 0), new Vector2(40, 18), new Vector2(240, 36), out armorBar); armorBar.fillAmount = 0; armorText = Txt2(H, "art", "0", 16, Color.white, TextAnchor.MiddleRight, new Vector2(0, 0), new Vector2(0, 0), new Vector2(244, 16), new Vector2(290, 38));
             chatLog = Txt2(H, "chat", "", 14, Color.white, TextAnchor.LowerLeft, new Vector2(0, 0), new Vector2(0, 0), new Vector2(14, 126), new Vector2(420, 300), FontStyle.Normal);
             chatInput = Field(H, "Nachricht… (Enter senden, Esc abbrechen)", new Vector2(0, 0), new Vector2(0, 0), new Vector2(14, 300), new Vector2(420, 330), 15); Show(chatInput.gameObject, false);
             // Unten rechts
-            slotsText = Txt2(H, "slots", "", 13, U.C("#cfd8dc"), TextAnchor.LowerRight, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-400, 118), new Vector2(-14, 140));
+            slotsText = Txt2(H, "slots", "", 13, U.C("#b8b1a4"), TextAnchor.LowerRight, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-400, 118), new Vector2(-14, 140));
             wname = Txt2(H, "wname", "Pistole", 18, Accent, TextAnchor.LowerRight, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-400, 94), new Vector2(-14, 118));
-            ammoText = Txt2(H, "ammo", "12", 50, Color.white, TextAnchor.LowerRight, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-400, 38), new Vector2(-70, 94));
-            reserveText = Txt2(H, "res", "/ ∞", 22, U.C("#cfd8dc"), TextAnchor.LowerLeft, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-66, 44), new Vector2(-6, 80));
+            ammoText = Head(Txt2(H, "ammo", "12", 50, Bone, TextAnchor.LowerRight, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-400, 38), new Vector2(-70, 94)));
+            reserveText = Txt2(H, "res", "/ ∞", 22, U.C("#b8b1a4"), TextAnchor.LowerLeft, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-66, 44), new Vector2(-6, 80));
             reloadText = Txt2(H, "rel", "NACHLADEN…", 16, Accent, TextAnchor.LowerRight, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-400, 16), new Vector2(-150, 38));
             gearText = Txt2(H, "gear", "💣 0", 15, Color.white, TextAnchor.LowerRight, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-400, 16), new Vector2(-14, 38));
             // Am Boden
             downedPanel = Img(H, "downed", new Color(0.3f, 0, 0, 0.35f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
-            Txt2(downedPanel.transform, "b", "DU BIST AM BODEN", 44, Red, TextAnchor.MiddleCenter, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0, 0), new Vector2(0, 70));
+            Head(Txt2(downedPanel.transform, "b", "DU BIST AM BODEN", 44, Red, TextAnchor.MiddleCenter, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0, 0), new Vector2(0, 70)));
             downedText = Txt2(downedPanel.transform, "s", "", 20, Color.white, TextAnchor.UpperCenter, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0, -80), new Vector2(0, 0)); Show(downedPanel, false);
             // Punktestand
             scoreboard = Img(H, "score", Panel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-260, -160), new Vector2(260, 160)).gameObject; scoreboard.AddComponent<Outline>().effectDistance = new Vector2(3, -3);
@@ -304,13 +313,13 @@ namespace ZA
             var panel = Img(shop.transform, "panel", Panel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-520, -380), new Vector2(520, 380), true); panel.gameObject.AddComponent<Outline>().effectDistance = new Vector2(3, -3);
             var P = panel.transform;
             Txt2(P, "h", "🛒 SHOP", 32, Color.white, TextAnchor.MiddleLeft, new Vector2(0, 1), new Vector2(0.5f, 1), new Vector2(24, -60), new Vector2(0, -14));
-            shopMoney = Txt2(P, "m", "$ 0", 28, U.C("#69f0ae"), TextAnchor.MiddleRight, new Vector2(0.5f, 1), new Vector2(1, 1), new Vector2(0, -60), new Vector2(-80, -14));
-            Btn(P, "✕", U.C("#b71c1c"), () => Game.I.CloseShop(), new Vector2(1, 1), new Vector2(1, 1), new Vector2(-66, -60), new Vector2(-20, -16), 22);
-            var warnBg = Img(P, "warnbg", U.C("#e65100"), new Vector2(0, 1), new Vector2(1, 1), new Vector2(24, -92), new Vector2(-24, -66));
+            shopMoney = Txt2(P, "m", "$ 0", 28, U.C("#c9b26a"), TextAnchor.MiddleRight, new Vector2(0.5f, 1), new Vector2(1, 1), new Vector2(0, -60), new Vector2(-80, -14));
+            Btn(P, "✕", U.C("#7a1f1f"), () => Game.I.CloseShop(), new Vector2(1, 1), new Vector2(1, 1), new Vector2(-66, -60), new Vector2(-20, -16), 22);
+            var warnBg = Img(P, "warnbg", U.C("#8a4a12"), new Vector2(0, 1), new Vector2(1, 1), new Vector2(24, -92), new Vector2(-24, -66));
             shopWarn = Txt2(warnBg.transform, "warn", "", 14, Color.white, TextAnchor.MiddleLeft, Vector2.zero, Vector2.one, new Vector2(8, 0), new Vector2(-8, 0));
             tabRow = Rect(P, "tabs", new Vector2(0, 1), new Vector2(1, 1), new Vector2(24, -140), new Vector2(-24, -98));
             var tabs = new (string id, string label)[] { ("weapons", "🔫 Waffen"), ("upgrades", "⬆ Aufwerten"), ("perks", "⭐ Perks"), ("turrets", "🗼 Türme & Barrikaden"), ("items", "🎒 Ausrüstung") };
-            for (int i = 0; i < tabs.Length; i++) { var tb = tabs[i]; float w = 1f / tabs.Length; var b = Btn(tabRow, tb.label, U.C("#37474f"), () => { shopTab = tb.id; onTab?.Invoke(tb.id); }, new Vector2(i * w, 0), new Vector2(i * w + w, 1), new Vector2(i == 0 ? 0 : 4, 0), new Vector2(i == tabs.Length - 1 ? 0 : -4, 0), 15); b.name = "tab_" + tb.id; }
+            for (int i = 0; i < tabs.Length; i++) { var tb = tabs[i]; float w = 1f / tabs.Length; var b = Btn(tabRow, tb.label, U.C("#2e2b28"), () => { shopTab = tb.id; onTab?.Invoke(tb.id); }, new Vector2(i * w, 0), new Vector2(i * w + w, 1), new Vector2(i == 0 ? 0 : 4, 0), new Vector2(i == tabs.Length - 1 ? 0 : -4, 0), 15); b.name = "tab_" + tb.id; }
             // Scrollbereich
             var sv = Rect(P, "scroll", Vector2.zero, Vector2.one, new Vector2(24, 20), new Vector2(-24, -148));
             var scroll = sv.gameObject.AddComponent<ScrollRect>(); sv.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0.01f); sv.gameObject.AddComponent<Mask>().showMaskGraphic = false;
@@ -323,7 +332,7 @@ namespace ZA
         public void RenderShop(int money, List<string> owned, string weapon, Dictionary<string, int> upg, List<string> perks, int nades, int barricades, bool canShop, string warn)
         {
             shopMoney.text = "$ " + money.ToString("N0");
-            foreach (Transform t in tabRow) { bool on = t.name == "tab_" + shopTab; t.GetComponent<Image>().color = on ? Accent : U.C("#37474f"); t.GetComponentInChildren<Text>().color = on ? Color.black : Color.white; }
+            foreach (Transform t in tabRow) { bool on = t.name == "tab_" + shopTab; t.GetComponent<Image>().color = on ? Accent : U.C("#2e2b28"); t.GetComponentInChildren<Text>().color = on ? Color.black : Color.white; }
             Show(shopWarn.transform.parent.gameObject, !canShop); shopWarn.text = warn;
             foreach (Transform c in shopGrid) UnityEngine.Object.Destroy(c.gameObject);
             string M(int v) => "$ " + v.ToString("N0");
@@ -382,7 +391,7 @@ namespace ZA
             var T = c.transform;
             Txt2(T, "i", icon, 30, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(1, 1), new Vector2(12, -50), new Vector2(-12, -8));
             Txt2(T, "t", title, 17, Color.white, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(1, 1), new Vector2(12, -76), new Vector2(-12, -52));
-            Txt2(T, "d", desc, 12, U.C("#b0bec5"), TextAnchor.UpperLeft, new Vector2(0, 0), new Vector2(1, 1), new Vector2(12, 54), new Vector2(-12, -78), FontStyle.Normal);
+            Txt2(T, "d", desc, 12, U.C("#9a948a"), TextAnchor.UpperLeft, new Vector2(0, 0), new Vector2(1, 1), new Vector2(12, 54), new Vector2(-12, -78), FontStyle.Normal);
             if (btn != null) { var b = Btn(T, btn, btnColor, onClick, new Vector2(0, 0), new Vector2(1, 0), new Vector2(12, 10), new Vector2(-12, 48), 15); b.interactable = !disabled; }
         }
 
@@ -394,7 +403,7 @@ namespace ZA
             Txt2(p.transform, "h", "PAUSE", 34, Color.white, TextAnchor.MiddleCenter, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -70), new Vector2(0, -16));
             pauseInfo = Txt2(p.transform, "i", "Das Spiel läuft für deine Freunde weiter!\nKlick ins Spiel, um die Maus zu fangen.", 15, Grey, TextAnchor.MiddleCenter, new Vector2(0, 1), new Vector2(1, 1), new Vector2(10, -120), new Vector2(-10, -72), FontStyle.Normal);
             Btn(p.transform, "▶ Weiterspielen", U.C("#558b2f"), () => Game.I.Resume(), new Vector2(0, 0), new Vector2(1, 0), new Vector2(30, 90), new Vector2(-30, 146), 22);
-            Btn(p.transform, "Spiel verlassen", U.C("#37474f"), () => Game.I.LeaveGame(), new Vector2(0, 0), new Vector2(1, 0), new Vector2(30, 30), new Vector2(-30, 76), 16);
+            Btn(p.transform, "Spiel verlassen", U.C("#2e2b28"), () => Game.I.LeaveGame(), new Vector2(0, 0), new Vector2(1, 0), new Vector2(30, 30), new Vector2(-30, 76), 16);
         }
         void BuildOver()
         {

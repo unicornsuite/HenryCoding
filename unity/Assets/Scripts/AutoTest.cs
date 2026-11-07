@@ -28,7 +28,7 @@ namespace ZA
             Application.logMessageReceived += (c, s, t) => { if (t == LogType.Error || t == LogType.Exception) File.AppendAllText(Path.Combine(dir, "errors.txt"), c + "\n" + s + "\n"); };
             var g = Game.I;
             yield return new WaitForSeconds(2);
-            Shot("01_lobby");
+            Shot("01_lobby"); yield return new WaitForSeconds(7); Shot("01b_lobby_late");
             yield return new WaitUntil(() => g.DebugConnected); yield return new WaitForSeconds(0.5f);
             if (!string.IsNullOrEmpty(mapOverride)) { g.DebugMap(mapOverride); yield return new WaitForSeconds(0.5f); }
             g.DebugStart();
