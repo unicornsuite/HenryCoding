@@ -146,6 +146,16 @@ namespace ZA
             foreach (var z in ents.zombies.Values) { if (z.dying) continue; float d = (new Vector2(z.x, z.z) - new Vector2(me.x, me.z)).sqrMagnitude; if (d < bd) { bd = d; best = z; } }
             if (best != null) { player.yaw = Mathf.Atan2(-(best.x - me.x), -(best.z - me.z)); player.pitch = -0.03f; }
         }
+        /// <summary>Selbsttest: zum nächsten Mitspieler schauen; liefert Abstand und Zustand</summary>
+        public string DebugFaceNearestRemote()
+        {
+            Remote best = null; float bd = 1e9f; var me = player.Pos;
+            foreach (var r in ents.remotes.Values) { float d = (new Vector2(r.x, r.z) - new Vector2(me.x, me.z)).sqrMagnitude; if (d < bd) { bd = d; best = r; } }
+            if (best == null) return "kein Mitspieler";
+            player.yaw = Mathf.Atan2(-(best.x - me.x), -(best.z - me.z)); player.pitch = -0.05f;
+            return $"{best.name} dist={Mathf.Sqrt(bd):0.0} state={best.state} weapon={best.weapon} pos=({best.x:0.0},{best.z:0.0})";
+        }
+        public string DebugChat(string text) { net.Send("t", "chat", "text", text); return text; }
         float debugFireT;
         public void DebugFire(float secs) { debugFireT = secs; }
         public void DebugThrowGrenade() { nades = Mathf.Max(nades, 1); ThrowGrenade(); }

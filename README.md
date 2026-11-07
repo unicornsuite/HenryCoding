@@ -78,7 +78,9 @@ oder einen Tunnel wie `npx cloudflared tunnel --url http://localhost:3000` start
 - Port ändern: `PORT=8080 npm start`
 
 ## Unity-Version (Mac-App)
-Im Ordner `unity/` liegt ein vollständiger Unity-Client (Unity 6, URP) mit derselben Spiellogik: Er verbindet sich per WebSocket mit dem Node-Server, **Browser- und Unity-Spieler spielen zusammen**.
+**Einrichtung auf einem neuen Mac: siehe [INSTALL.md](INSTALL.md).** Auf dem Branch `realistisch` liegt die realistische HDRP-Fassung „Ruinenstadt“ (gekaufte Store-Pakete nötig, siehe `EINKAUFSLISTE.md`); der Tag `v1-kloetzchen` ist der Klötzchen-Stand.
+
+Im Ordner `unity/` liegt ein vollständiger Unity-Client (Unity 6, HDRP) mit derselben Spiellogik: Er verbindet sich per WebSocket mit dem Node-Server, **Browser- und Unity-Spieler spielen zusammen**.
 
 - Fertige App: `unity/Build/Zombie-Ansturm.app` (doppelklicken). In der Lobby oben links die Server-Adresse eintragen (z. B. `localhost:3000` oder die WLAN-Adresse des Rechners, auf dem `npm start` läuft).
 - Neu bauen: `tools/build-unity.sh` (braucht Unity Hub + Unity 6000.3 mit Mac Build Support). Das Skript exportiert zuerst `shared/` nach `unity/Assets/Resources/gamedata.json`, damit Karten und Werte identisch bleiben.

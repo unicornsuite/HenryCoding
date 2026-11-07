@@ -8,7 +8,7 @@ namespace ZA
 {
     public class AutoTest : MonoBehaviour
     {
-        string dir; public static string serverOverride, mapOverride;
+        string dir; public static string serverOverride, mapOverride; public static float startDelay; public static bool secondary;
         public static bool Active;
 
         public static void Start(GameObject host)
@@ -19,6 +19,8 @@ namespace ZA
                 if (args[i] == "-autotest" && i + 1 < args.Length) { var at = host.AddComponent<AutoTest>(); at.dir = args[i + 1]; Active = true; }
                 if (args[i] == "-server" && i + 1 < args.Length) serverOverride = args[i + 1];
                 if (args[i] == "-map" && i + 1 < args.Length) mapOverride = args[i + 1];
+                if (args[i] == "-delay" && i + 1 < args.Length) float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out startDelay);
+                if (args[i] == "-secondary") secondary = true; // zweiter Client im Mehrspielertest: nur beitreten, Mitspieler fotografieren
             }
         }
 
@@ -27,6 +29,8 @@ namespace ZA
             Directory.CreateDirectory(dir);
             Application.logMessageReceived += (c, s, t) => { if (t == LogType.Error || t == LogType.Exception) File.AppendAllText(Path.Combine(dir, "errors.txt"), c + "\n" + s + "\n"); };
             var g = Game.I;
+            if (startDelay > 0) yield return new WaitForSeconds(startDelay);
+            if (secondary) { yield return Secondary(g); yield break; }
             yield return new WaitForSeconds(2);
             yield return Shot("01_lobby"); yield return new WaitForSeconds(7); yield return Shot("01b_lobby_late");
             yield return new WaitUntil(() => g.DebugConnected); yield return new WaitForSeconds(0.5f);
@@ -65,11 +69,32 @@ namespace ZA
             for (int i = 0; i < 6; i++) { g.DebugFaceNearestZombie(); g.DebugFire(1.0f); yield return new WaitForSeconds(1.4f); yield return Shot("07_fight_" + i); }
             g.DebugThrowGrenade(); yield return new WaitForSeconds(1.2f); yield return Shot("08_grenade");
             g.DebugMelee(); yield return new WaitForSeconds(0.2f); yield return Shot("09_melee"); DumpNear();
+            // Mehrspieler: zum Mitspieler schauen (falls ein zweiter Client verbunden ist)
+            string rem = g.DebugFaceNearestRemote(); yield return new WaitForSeconds(0.4f); yield return Shot("12_remote"); File.WriteAllText(Path.Combine(dir, "remote.txt"), rem + "\n" + g.DebugState());
+            g.DebugChat("Hallo vom Haupt-Client"); yield return new WaitForSeconds(0.6f); yield return Shot("12b_remote_chat");
             g.DebugThirdPerson(true); yield return new WaitForSeconds(0.8f); yield return Shot("10_thirdperson"); g.DebugFire(0.4f); yield return new WaitForSeconds(0.5f); yield return Shot("11_thirdperson_fire");
             File.WriteAllText(Path.Combine(dir, "state.txt"), g.DebugState());
             File.WriteAllText(Path.Combine(dir, "walls.txt"), g.DebugWallTest());
             yield return new WaitForSeconds(0.5f);
             Application.Quit();
+        }
+        /// <summary>Zweiter Client: einem laufenden Spiel beitreten, auf den Mitspieler schauen, Chat senden, Bilder machen</summary>
+        IEnumerator Secondary(Game g)
+        {
+            yield return new WaitUntil(() => g.DebugConnected); yield return new WaitForSeconds(0.5f);
+            yield return Shot("s01_lobby");
+            g.DebugStart(); // bei laufendem Spiel: Beitritt
+            yield return new WaitUntil(() => g.DebugInGame); yield return new WaitForSeconds(3f);
+            yield return Shot("s02_spawn");
+            for (int i = 0; i < 12; i++)
+            {
+                string rem = g.DebugFaceNearestRemote(); yield return new WaitForSeconds(1.0f);
+                if (i % 3 == 0) { yield return Shot($"s03_remote_{i}"); File.AppendAllText(Path.Combine(dir, "remote.txt"), rem + " | " + g.DebugState() + "\n"); }
+                if (i == 2) g.DebugChat("Hallo vom zweiten Client");
+                if (i == 5) { g.DebugFire(0.8f); }
+            }
+            g.DebugThirdPerson(true); yield return new WaitForSeconds(0.6f); yield return Shot("s04_thirdperson");
+            yield return new WaitForSeconds(0.5f); Application.Quit();
         }
         /// <summary>Kontaktbogen: n aufeinanderfolgende Frames verkleinert in ein Bild, dazu pro Frame eine Logzeile</summary>
         IEnumerator Sheet(string name, int frames, int cols = 10)
