@@ -34,7 +34,7 @@ namespace ZA
             g.DebugStart();
             yield return new WaitUntil(() => g.DebugInGame); yield return new WaitForSeconds(2.5f);
             yield return Shot("02_spawn");
-            g.DebugLook(0, -0.05f); yield return new WaitForSeconds(0.3f); yield return Shot("03_lookgen");
+            g.DebugLook(0, -0.05f); yield return new WaitForSeconds(0.3f); yield return Shot("03_lookgen"); g.DebugLook(0.7f, -0.3f); yield return new WaitForSeconds(0.3f); yield return Shot("03b_gen_side");
             g.DebugLook(Mathf.PI, -0.1f); yield return new WaitForSeconds(0.3f); yield return Shot("04_lookaway");
             // Kalibrierungsbilder für das echte Waffenmodell
             foreach (var (yaw, sc) in new[] { (180f, 0.22f), (180f, 0.15f), (180f, 0.3f), (0f, 0.22f) }) { g.DebugVm(yaw, sc); yield return new WaitForSeconds(0.3f); yield return Shot($"04c_vm_{yaw:0}_{sc:0.00}"); }

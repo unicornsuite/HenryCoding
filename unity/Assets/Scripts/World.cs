@@ -457,9 +457,9 @@ namespace ZA
         {
             if (!ready || gen == null) return; // Stadt-Szene lädt noch
             t += dt;
-            gen.fan.Rotate(0, dt * 9 * Mathf.Rad2Deg, 0);
-            U.SetEmission(gen.core, U.C("#00e5ff"), 1.0f + Mathf.Sin(t * 3) * 0.4f);
-            for (int i = 0; i < gen.lamps.Count; i++) U.SetEmission(gen.lamps[i], U.C("#ff1744"), Mathf.Sin(t * 5 + i * 1.57f) > 0 ? 2 : 0.2f);
+            gen.fan.Rotate(0, dt * 14 * Mathf.Rad2Deg, 0);
+            U.SetEmission(gen.core, U.C("#ffb74d"), 0.8f + Mathf.PerlinNoise(t * 4, 0.3f) * 0.5f);
+            for (int i = 0; i < gen.lamps.Count; i++) { bool beacon = i == gen.lamps.Count - 1; U.SetEmission(gen.lamps[i], beacon ? U.C("#ff9100") : U.C("#ff1744"), beacon ? 0.6f + Mathf.Pow(Mathf.Max(0, Mathf.Sin(t * 4)), 6) * 3.5f : (Mathf.Sin(t * 5 + i * 1.57f) > 0 ? 2 : 0.2f)); }
             foreach (var c in clouds) { var p = c.position; p.x += dt * 2; if (p.x > 220) p.x = -220; c.position = p; }
             for (int i = 0; i < lampLights.Count; i++) lampLights[i].GetComponent<UnityEngine.Rendering.HighDefinition.HDAdditionalLightData>().SetIntensity(1800 + (Mathf.PerlinNoise(t * 6 + i * 3.1f, i) - 0.5f) * 900, UnityEngine.Rendering.LightUnit.Lumen); // Flackern
             if (crate != null)

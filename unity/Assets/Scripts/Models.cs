@@ -295,17 +295,59 @@ namespace ZA
         public class GenParts { public GameObject root; public Transform fan; public Material core; public List<Material> lamps = new List<Material>(); }
         public static GenParts BuildGenerator()
         {
+            // Verwittertes Diesel-Stromaggregat: Betonsockel, Stahlrahmen, Motorgehäuse mit Kühlergrill und Lüfter, Auspuff, Tank, Schaltkasten, Kabel, Sandsäcke
             var gp = new GenParts { root = new GameObject("generator") }; var r = gp.root.transform;
-            var stripes = U.NewMat(Color.white, 0, 0.4f, U.StripeTex());
-            Material grey = U.Mat("#607d8b", 0.5f, 0.5f), dark = U.Mat("#263238", 0.5f, 0.5f);
-            U.Box(r, stripes, 0, 0.25f, 0, 2.6f, 0.5f, 2.6f); U.Box(r, grey, 0, 1.15f, 0, 2.3f, 1.3f, 2.3f);
-            gp.core = U.NewMat(U.C("#80deea"), 0, 0.7f, null, U.C("#00e5ff"), 1.2f);
-            foreach (var (x, z, ry) in new[] { (0f, 1.16f, 0f), (0f, -1.16f, 0f), (1.16f, 0f, Mathf.PI / 2), (-1.16f, 0f, Mathf.PI / 2) }) U.Box(r, gp.core, x, 1.15f, z, 1.2f, 0.7f, 0.04f, 0, ry, 0, false);
-            U.Box(r, dark, 0, 1.87f, 0, 2.4f, 0.15f, 2.4f); U.Cyl(r, dark, 0, 2.05f, 0, 0.7f, 0.3f);
-            gp.fan = Pivot(r, "fan", new Vector3(0, 2.22f, 0));
-            for (int i = 0; i < 4; i++) U.Box(gp.fan, U.Mat("#b0bec5", 0.6f, 0.5f), 0, 0, 0, 1.1f, 0.04f, 0.22f, 0, i * Mathf.PI / 4, 0, false);
-            foreach (var (x, z) in new[] { (1.1f, 1.1f), (-1.1f, 1.1f), (1.1f, -1.1f), (-1.1f, -1.1f) }) { var lm = U.NewMat(U.C("#ff5252"), 0, 0.4f, null, U.C("#ff1744"), 1f); gp.lamps.Add(lm); U.Box(r, lm, x, 2.03f, z, 0.18f, 0.18f, 0.18f, 0, 0, 0, false); }
-            U.Box(r, U.Mat("#212121"), 0, 0.06f, 1.65f, 0.25f, 0.12f, 2.2f); U.Box(r, U.Mat("#212121"), 1.65f, 0.06f, 0, 2.2f, 0.12f, 0.25f);
+            var nrm = U.NoiseNormal();
+            Material concrete = U.MatN("#6e6a62", U.StoneTex(), nrm, 0.12f, 1f);
+            Material olive = U.NewMat(U.C("#4a4d3f"), 0.55f, 0.32f, null, null, 0, nrm, 0.9f);
+            Material oliveDark = U.NewMat(U.C("#363a30"), 0.55f, 0.3f, null, null, 0, nrm, 0.9f);
+            Material rust = U.NewMat(U.C("#5a3a22"), 0.35f, 0.22f, null, null, 0, nrm, 1.2f);
+            Material steel = U.NewMat(U.C("#3a3d40"), 0.8f, 0.45f, null, null, 0, nrm, 0.6f);
+            Material black = U.NewMat(U.C("#1b1c1a"), 0.3f, 0.25f);
+            Material grille = U.NewMat(U.C("#202221"), 0.7f, 0.3f);
+            Material sand = U.NewMat(U.C("#5e5442"), 0, 0.12f, null, null, 0, nrm, 1.4f), sand2 = U.NewMat(U.C("#4f4738"), 0, 0.12f, null, null, 0, nrm, 1.4f);
+            // Sockel + Rahmen
+            U.Box(r, concrete, 0, 0.11f, 0, 3.2f, 0.22f, 2.4f);
+            foreach (var z in new[] { -0.8f, 0.8f }) U.Box(r, rust, 0, 0.3f, z, 2.6f, 0.16f, 0.16f);
+            foreach (var x in new[] { -1.2f, 1.2f }) U.Box(r, rust, x, 0.3f, 0, 0.16f, 0.16f, 1.76f);
+            // Motorgehäuse (Kanzel) mit Blechstößen und Türgriffen
+            U.Box(r, olive, 0.1f, 1.05f, 0, 2.0f, 1.35f, 1.3f);
+            foreach (var x in new[] { -0.55f, 0.1f, 0.75f }) U.Box(r, oliveDark, x, 1.05f, 0, 0.03f, 1.37f, 1.32f, 0, 0, 0, false);
+            foreach (var z in new[] { 0.66f, -0.66f }) { U.Box(r, black, -0.25f, 1.0f, z, 0.05f, 0.14f, 0.03f, 0, 0, 0, false); U.Box(r, black, 0.4f, 1.0f, z, 0.05f, 0.14f, 0.03f, 0, 0, 0, false); }
+            U.Box(r, oliveDark, 0.1f, 1.76f, 0, 2.06f, 0.08f, 1.36f);
+            // Kühlergrill vorne (-X) mit Lamellen, dahinter der Lüfter
+            U.Box(r, grille, -0.93f, 1.05f, 0, 0.1f, 1.1f, 1.1f);
+            for (int i = 0; i < 7; i++) U.Box(r, steel, -0.985f, 0.6f + i * 0.15f, 0, 0.02f, 0.03f, 1.05f, 0, 0, 0, false);
+            gp.fan = Pivot(r, "fan", new Vector3(-0.9f, 1.05f, 0)); gp.fan.localEulerAngles = new Vector3(0, 0, 90);
+            U.Cyl(gp.fan, black, 0, 0, 0, 0.12f, 0.1f);
+            for (int i = 0; i < 5; i++) U.Box(gp.fan, steel, 0, 0, 0, 0.9f, 0.02f, 0.16f, 0.35f, i * Mathf.PI / 5, 0, false);
+            // Auspuff mit Regenklappe, Tank, Einfüllstutzen
+            U.Cyl(r, rust, 0.75f, 2.25f, -0.35f, 0.07f, 1.0f); U.Cyl(r, black, 0.75f, 2.78f, -0.35f, 0.1f, 0.06f, 0.35f);
+            U.Cyl(r, rust, 0.1f, 0.62f, 0.85f, 0.22f, 1.6f, 0, 0, Mathf.PI / 2); U.Cyl(r, black, 0.4f, 0.88f, 0.85f, 0.06f, 0.08f);
+            foreach (var x in new[] { -0.6f, 0.8f }) U.Box(r, steel, x, 0.48f, 0.85f, 0.06f, 0.5f, 0.5f);
+            // Schaltkasten mit Anzeige (core = Anzeigeleuchte) und Statuslampen
+            U.Box(r, oliveDark, 1.3f, 1.0f, 0.2f, 0.4f, 0.7f, 0.5f);
+            gp.core = U.NewMat(U.C("#3a2a10"), 0, 0.6f, null, U.C("#ffb74d"), 1.0f);
+            U.Box(r, gp.core, 1.505f, 1.12f, 0.2f, 0.01f, 0.18f, 0.28f, 0, 0, 0, false);
+            foreach (var (z, c) in new[] { (0.05f, "#ff1744"), (0.2f, "#ff1744"), (0.35f, "#76ff03") }) { var lm = U.NewMat(U.C(c), 0, 0.4f, null, U.C(c), 1f); if (c != "#76ff03") gp.lamps.Add(lm); U.Box(r, lm, 1.505f, 0.88f, z, 0.01f, 0.05f, 0.05f, 0, 0, 0, false); }
+            // Rundumleuchte oben
+            U.Cyl(r, black, -0.5f, 1.84f, 0.3f, 0.08f, 0.08f);
+            var beacon = U.NewMat(new Color(1f, 0.55f, 0.1f, 0.9f), 0, 0.7f, null, U.C("#ff9100"), 1.5f); gp.lamps.Add(beacon);
+            U.Cyl(r, beacon, -0.5f, 1.95f, 0.3f, 0.07f, 0.16f);
+            // Kabel vom Schaltkasten zum Boden und zur Kanzel
+            U.Cyl(r, black, 1.6f, 0.45f, 0.1f, 0.025f, 1.0f, 0.5f, 0, 0.35f); U.Cyl(r, black, 1.65f, 0.35f, 0.35f, 0.025f, 0.9f, 0.9f, 0, 0.2f);
+            U.Cyl(r, black, 2.0f, 0.12f, -0.4f, 0.03f, 1.4f, 0, 0.6f, Mathf.PI / 2);
+            // Kanister und Sandsäcke
+            U.Box(r, U.NewMat(U.C("#3d4a2e"), 0.3f, 0.3f, null, null, 0, nrm, 0.8f), -1.1f, 0.45f, 0.95f, 0.32f, 0.46f, 0.18f, 0, 0.3f, 0);
+            U.Box(r, U.NewMat(U.C("#5a3a22"), 0.3f, 0.3f, null, null, 0, nrm, 0.8f), -1.35f, 0.45f, 0.8f, 0.32f, 0.46f, 0.18f, 0, -0.2f, 0);
+            var rnd = U.Rng(5);
+            // Sandsäcke: flache, leicht gestauchte Kapseln in zwei Lagen, versetzt wie gemauert
+            for (int i = 0; i < 16; i++) { float a = -0.7f + i * (Mathf.PI * 1.3f / 16f); float rad = 2.05f + (rnd() - 0.5f) * 0.12f; var mat = rnd() > 0.5f ? sand : sand2; U.Prim(PrimitiveType.Capsule, r, mat, new Vector3(Mathf.Cos(a) * rad, 0.13f, Mathf.Sin(a) * rad), new Vector3(0.36f, 0.3f, 0.26f), new Vector3(0, -a * Mathf.Rad2Deg + (rnd() - 0.5f) * 20f, 90f)); if (i % 2 == 1 && i < 15) U.Prim(PrimitiveType.Capsule, r, mat, new Vector3(Mathf.Cos(a + 0.12f) * rad, 0.35f, Mathf.Sin(a + 0.12f) * rad), new Vector3(0.36f, 0.3f, 0.26f), new Vector3(0, -(a + 0.12f) * Mathf.Rad2Deg + (rnd() - 0.5f) * 20f, 90f)); }
+            // Arbeitsleuchte am Mast (warmes Licht)
+            U.Cyl(r, steel, -1.4f, 1.6f, -1.0f, 0.03f, 3.0f); U.Box(r, black, -1.3f, 3.05f, -0.95f, 0.3f, 0.18f, 0.22f, 0.5f, 0.6f, 0);
+            var lgo = new GameObject("worklight"); lgo.transform.SetParent(r, false); lgo.transform.localPosition = new Vector3(-1.2f, 2.95f, -0.85f); lgo.transform.localRotation = Quaternion.Euler(60, 50, 0);
+            var li = lgo.AddComponent<Light>(); li.type = LightType.Spot; li.color = U.C("#ffd9a0"); li.range = 14; li.spotAngle = 80; li.innerSpotAngle = 40; li.shadows = LightShadows.None;
+            var hd = lgo.AddComponent<UnityEngine.Rendering.HighDefinition.HDAdditionalLightData>(); hd.SetIntensity(2500, UnityEngine.Rendering.LightUnit.Lumen);
             return gp;
         }
 

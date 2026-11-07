@@ -414,7 +414,7 @@ namespace ZA
                         if (weapon == "shotgun" && it.distance > 8) dmg *= Mathf.Max(0.35f, 1 - (it.distance - 8) / 20);
                         var h = hits.TryGetValue(zz.id, out var hv) ? hv : (0, false, zz); hits[zz.id] = (h.dmg + dmg, h.head || hb.head, zz);
                         zz.flash = 1; anyHit = true; anyHead |= hb.head;
-                        fx.Blood(it.point, dir); fx.DamageNumber(it.point, dmg, hb.head);
+                        fx.Blood(it.point, dir);
                         if (--pierce <= 0) { end = it.point; break; }
                     }
                     else { end = it.point; fx.Sparks(it.point, it.normal); break; }
@@ -436,7 +436,7 @@ namespace ZA
             {
                 if (zz.dying || zz.rise > 0) continue;
                 float d = new Vector3(zz.x - p.x, (zz.cfg.scale - p.y) * 0.5f, zz.z - p.z).magnitude;
-                if (d < splash + zz.cfg.radius) { float dmg = damage * (1 - 0.5f * Mathf.Min(1, d / splash)); hits.Add(new List<object> { zz.id, Mathf.RoundToInt(dmg), 0 }); zz.flash = 1; zz.bigDeath = T; fx.DamageNumber(new Vector3(zz.x, 2 * zz.cfg.scale, zz.z), dmg); }
+                if (d < splash + zz.cfg.radius) { float dmg = damage * (1 - 0.5f * Mathf.Min(1, d / splash)); hits.Add(new List<object> { zz.id, Mathf.RoundToInt(dmg), 0 }); zz.flash = 1; zz.bigDeath = T; }
             }
             if (hits.Count > 0) { net.Send("t", "hit", "w", label, "hits", hits); ui.Hitmarker(false); sfx.Play("hit"); }
         }
@@ -493,7 +493,7 @@ namespace ZA
                 bool isHead = player.pitch > -0.15f && zz.cfg.scale <= 1.2f && !zz.cfg.crawl;
                 float dmg = D.meleeDamage * (isHead ? 1.5f : 1);
                 hits.Add(new List<object> { zz.id, Mathf.RoundToInt(dmg), isHead ? 1 : 0 }); zz.flash = 1; any = true; head |= isHead;
-                var hp0 = new Vector3(zz.x, 1.3f * zz.cfg.scale, zz.z); fx.Blood(hp0, f); fx.DamageNumber(hp0, dmg, false); fx.TextNumber(hp0 + Vector3.up * 0.4f, "🔪", U.C("#ff8a65"), 0.5f);
+                var hp0 = new Vector3(zz.x, 1.3f * zz.cfg.scale, zz.z); fx.Blood(hp0, f); fx.TextNumber(hp0 + Vector3.up * 0.4f, "🔪", U.C("#ff8a65"), 0.5f);
             }
             if (any) { net.Send("t", "hit", "w", "melee", "hits", hits); ui.Hitmarker(false); sfx.Play(head ? "headshot" : "hit"); fx.shake = Mathf.Max(fx.shake, 0.15f); }
         }
