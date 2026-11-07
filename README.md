@@ -78,7 +78,7 @@ oder einen Tunnel wie `npx cloudflared tunnel --url http://localhost:3000` start
 - Port ändern: `PORT=8080 npm start`
 
 ## Unity-Version (Mac-App)
-**Einrichtung auf einem neuen Mac: siehe [INSTALL.md](INSTALL.md).** Auf dem Branch `realistisch` liegt die realistische HDRP-Fassung „Ruinenstadt“ (gekaufte Store-Pakete nötig, siehe `EINKAUFSLISTE.md`); der Tag `v1-kloetzchen` ist der Klötzchen-Stand.
+**Einrichtung auf einem neuen Mac: siehe [INSTALL.md](INSTALL.md).** Auf GitHub (`unicornsuite/HenryCoding`) liegt die realistische HDRP-Fassung „Ruinenstadt“ im Branch `zombie-ansturm` (gekaufte Store-Pakete nötig, siehe `EINKAUFSLISTE.md`); der Branch `zombie-ansturm-kloetzchen` bzw. Tag `v1-kloetzchen` ist der Klötzchen-Stand.
 
 Im Ordner `unity/` liegt ein vollständiger Unity-Client (Unity 6, HDRP) mit derselben Spiellogik: Er verbindet sich per WebSocket mit dem Node-Server, **Browser- und Unity-Spieler spielen zusammen**.
 

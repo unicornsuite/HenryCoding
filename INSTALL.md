@@ -4,8 +4,10 @@ Es gibt zwei Spielvarianten, die denselben Server nutzen:
 
 | Variante | Branch | Was man braucht | Aufwand |
 |---|---|---|---|
-| **Browser-Version** (Klötzchen-Stil) | `main` (Tag `v1-kloetzchen`) | nur Node.js | 2 Minuten |
-| **Unity-Version „Ruinenstadt“** (realistisch, HDRP) | `realistisch` | Node.js, Unity 6000.3.28f1, die vier gekauften Store-Pakete | ca. 1 Stunde (davon ~10 Min. Build) |
+| **Browser-Version** (Klötzchen-Stil) | `zombie-ansturm-kloetzchen` (Tag `v1-kloetzchen`) | nur Node.js | 2 Minuten |
+| **Unity-Version „Ruinenstadt“** (realistisch, HDRP) | `zombie-ansturm` | Node.js, Unity 6000.3.28f1, die vier gekauften Store-Pakete | ca. 1 Stunde (davon ~10 Min. Build) |
+
+Das Spiel liegt im Sammel-Repository `unicornsuite/HenryCoding`, in dem jedes Projekt einen eigenen Branch hat.
 
 Mitspieler im selben WLAN brauchen für die Browser-Version gar nichts zu installieren. Für die Unity-Version braucht jeder Mitspieler die gebaute App (`Zombie-Ansturm.app`), die man einmal baut und dann weitergeben kann (ca. 2 GB).
 
@@ -16,7 +18,7 @@ Mitspieler im selben WLAN brauchen für die Browser-Version gar nichts zu instal
 1. **Node.js** installieren (LTS-Version): <https://nodejs.org>
 2. Repository holen:
    ```bash
-   git clone https://github.com/unicornsuite/zombie-ansturm.git
+   git clone --branch zombie-ansturm https://github.com/unicornsuite/HenryCoding.git zombie-ansturm
    cd zombie-ansturm
    npm install
    ```
@@ -39,11 +41,8 @@ Damit läuft die Browser-Version bereits. Für die Unity-Version weiter mit Schr
 2. Im Hub unter *Installs → Install Editor* genau die Version **6000.3.28f1** wählen (andere Versionen können Projekt und Pakete anders importieren). Beim Installieren das Modul **Mac Build Support (Mono)** anhaken.
 3. Mit der Unity-ID anmelden, mit der die Store-Pakete gekauft wurden.
 
-### 2.2 Branch wechseln und Projekt öffnen
-```bash
-git checkout realistisch
-```
-Im Unity Hub *Add → Add project from disk* und den Ordner `zombie-ansturm/unity` wählen. Der erste Import dauert einige Minuten.
+### 2.2 Projekt öffnen
+Der Branch `zombie-ansturm` ist bereits ausgecheckt (für die Klötzchen-Version: `git checkout zombie-ansturm-kloetzchen`). Im Unity Hub *Add → Add project from disk* und den Ordner `zombie-ansturm/unity` wählen. Der erste Import dauert einige Minuten.
 
 ### 2.3 Die vier Store-Pakete importieren
 Die Pakete sind lizenzgebunden und **nicht im Repository**. Sie müssen aus dem eigenen Asset-Store-Konto importiert werden (siehe auch `EINKAUFSLISTE.md`):
