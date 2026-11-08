@@ -298,6 +298,7 @@ export const ui = {
     } else {
       for (const id of ITEM_ORDER) {
         const it = ITEMS[id];
+        if (it.unityOnly) continue; // Schaufel/Bretter gibt es nur in der Unity-Version
         const extra = id === 'nades' ? ` (${st.nades}/${GRENADE.max})` : '';
         html += `<div class="card ${st.money < it.price ? 'cant' : ''}"><div class="icon">${ITEM_ICON[id]}</div><b>${it.name}${extra}</b><p>${it.desc}</p>
           <button data-buy="${id}" ${dis(it.price)}>${money(it.price)}</button></div>`;

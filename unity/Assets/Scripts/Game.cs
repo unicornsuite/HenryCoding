@@ -34,6 +34,9 @@ namespace ZA
         // Platzieren
         class Placing { public string type; public GameObject ghost; public List<Material> mats = new List<Material>(); public bool valid, pending; public float x, z; public int rot; public string reason = ""; public Transform ring; }
         Placing placing;
+        // Schaufel (Werkzeug): Gruben graben, Bretter setzen
+        public bool HasShovel { get; private set; } public int Boards { get; private set; }
+        bool shovelMode; float digT, digTotal, shovelSwing, strikeT, strikeCd; Vector3 digPos, digStart; GameObject shovelVm;
         float crateSpinT; Light flashlight; bool flashOn = true;
         float hudT, sendT, zucT; bool zucHit;
         // Lobby-Hintergrund: Karte mit Kamerafahrt und herumlaufenden Zombies
@@ -318,6 +321,7 @@ namespace ZA
                         var own = J.A(m, "owned").Select(o => o.ToString()).ToList(); owned = D.weapons.Where(w => own.Contains(w.id)).Select(w => w.id).ToList();
                         money = J.I(m, "money"); upg = new Dictionary<string, int>(); var uo = J.O(m, "upg"); if (uo != null) foreach (var kv in uo) upg[kv.Key] = (int)J.Num(kv.Value);
                         perks = J.A(m, "perks").Select(o => o.ToString()).ToList(); nades = J.I(m, "nades"); maxHp = J.I(m, "maxHp", 100);
+                        HasShovel = J.B(m, "shovel"); Boards = J.I(m, "boards"); if (!HasShovel && shovelMode) SetShovelMode(false);
                         foreach (var id in owned) if (!ammo.ContainsKey(id)) InitAmmo(id);
                         if ((upg.TryGetValue(weapon, out var nt) ? nt : 0) != prevTier || prevPerks != string.Join(",", perks)) { var a = ammo[weapon]; ammo[weapon] = (Mathf.Max(a.mag, Mathf.Min(WStat().mag, a.mag + 10)), a.res); player.BuildViewmodel(weapon, upg.TryGetValue(weapon, out var t2) ? t2 : 0, myColor); }
                         RefreshShop(); break;
@@ -392,6 +396,7 @@ namespace ZA
         void Equip(string id)
         {
             if (!owned.Contains(id) || (weapon == id && player.switchT <= 0)) return;
+            if (shovelMode) SetShovelMode(false);
             weapon = id; player.switchT = 0.35f; player.reloadT = 0; player.spin = 0;
             player.BuildViewmodel(id, upg.TryGetValue(id, out var t) ? t : 0, myColor);
         }
@@ -563,7 +568,10 @@ namespace ZA
             foreach (var ao in J.A(m, "tu")) { var a = J.Arr(ao); int id = J.I(a, 0); ts.Add(id); var t = ents.turrets.TryGetValue(id, out var t0) ? t0 : ents.CreateTurret(id, D.turrets[J.I(a, 1)].id, J.F(a, 2), J.F(a, 3), J.F(a, 4), J.I(a, 6)); t.tyaw = J.F(a, 4); t.hp = J.I(a, 5); }
             foreach (var t in ents.turrets.Values.ToList()) if (!ts.Contains(t.id)) ents.RemoveTurret(t);
             var bs = new HashSet<int>();
-            foreach (var ao in J.A(m, "ba")) { var a = J.Arr(ao); int id = J.I(a, 0); bs.Add(id); var b = ents.barricades.TryGetValue(id, out var b0) ? b0 : ents.CreateBarricade(id, J.F(a, 1), J.F(a, 2), J.I(a, 3)); b.hp = J.I(a, 4); }
+            foreach (var ao in J.A(m, "ba")) { var a = J.Arr(ao); int id = J.I(a, 0); bs.Add(id); var b = ents.barricades.TryGetValue(id, out var b0) ? b0 : ents.CreateBarricade(id, J.F(a, 1), J.F(a, 2), J.I(a, 3), J.I(a, 5), J.I(a, 6)); b.hp = J.I(a, 4); }
+            var pis = new HashSet<int>();
+            foreach (var ao in J.A(m, "pi")) { var a = J.Arr(ao); int id = J.I(a, 0); pis.Add(id); var p = ents.pits.TryGetValue(id, out var p0) ? p0 : ents.CreatePit(id, J.F(a, 1), J.F(a, 2)); p.covered = J.I(a, 3) == 1; }
+            foreach (var p in ents.pits.Values.ToList()) if (!pis.Contains(p.id)) ents.RemovePit(p);
             foreach (var b in ents.barricades.Values.ToList()) if (!bs.Contains(b.id)) ents.RemoveBarricade(b);
             var ps = new HashSet<int>();
             foreach (var ao in J.A(m, "pk")) { var a = J.Arr(ao); int id = J.I(a, 0); ps.Add(id); var p = ents.pickups.TryGetValue(id, out var p0) ? p0 : ents.CreatePickup(id, D.powerups[J.I(a, 1)].id, J.F(a, 2), J.F(a, 3)); p.t = J.F(a, 4); }
@@ -627,6 +635,8 @@ namespace ZA
                     }
                 case "td": { var p = new Vector3(J.F(e, "x"), 1, J.F(e, "z")); fx.Explosion(p, 2.5f); sfx.Play("explosion", p); if (ents.turrets.TryGetValue(J.I(e, "id"), out var t)) { if (t.owner == myId) ui.Toast("Einer deiner Türme wurde zerstört!", "bad"); ents.RemoveTurret(t); } break; }
                 case "tp": case "bp": sfx.Play("place"); break;
+                case "dg": { var p = new Vector3(J.F(e, "x"), World.GroundY(J.F(e, "x"), J.F(e, "z")), J.F(e, "z")); fx.Burst(p + Vector3.up * 0.2f, U.C("#3f3024"), 26, 3.5f, 0.09f, 0.9f, 2.5f); fx.Burst(p + Vector3.up * 0.1f, U.C("#5a4632"), 14, 2f, 0.06f, 0.7f, 1.5f); sfx.Play("woodhit", p, 0.8f, 0.55f); break; }
+                case "pt": { var p = new Vector3(J.F(e, "x"), World.GroundY(J.F(e, "x"), J.F(e, "z")), J.F(e, "z")); fx.Gibs(p + Vector3.up * 0.3f, new[] { U.C("#6b5b47"), U.C("#4f4234"), U.C("#3f3024") }, 18, 5); fx.Burst(p, U.C("#3f3024"), 20, 3f, 0.08f, 0.8f, 2f); sfx.Play("woodbreak", p); if (ents.zombies.TryGetValue(J.I(e, "zid"), out var tz)) { tz.flash = 1; } break; }
                 case "bh": { if (ents.barricades.TryGetValue(J.I(e, "id"), out var b)) { b.shakeT = 0.3f; fx.Burst(new Vector3(J.F(e, "x"), 0.8f, J.F(e, "z")), U.C("#8d6e63"), 6, 3, 0.08f, 0.6f); } sfx.Play("woodhit", new Vector3(J.F(e, "x"), 1, J.F(e, "z"))); break; }
                 case "bd": { var p = new Vector3(J.F(e, "x"), 0.6f, J.F(e, "z")); fx.Gibs(p, new[] { U.C("#8d6e63"), U.C("#5d4037"), U.C("#a1887f") }, 16, 6); sfx.Play("woodbreak", p); if (ents.barricades.TryGetValue(J.I(e, "id"), out var b)) ents.RemoveBarricade(b); ui.Toast("Eine Barrikade wurde zerstört!", "bad"); break; }
                 case "down": if (J.I(e, "id") != myId) sfx.Play("hurt"); break;
@@ -663,8 +673,8 @@ namespace ZA
         void StartPlacing(string type)
         {
             CancelPlacing();
-            bool isBarr = type == "barricade";
-            var ghost = isBarr ? Models.BuildBarricade() : Models.BuildTurret(type, D.turret[type].color).root;
+            bool isBoard = type == "board", isBarr = type == "barricade" || isBoard;
+            var ghost = isBoard ? Models.BuildBoard() : isBarr ? Models.BuildBarricade() : Models.BuildTurret(type, D.turret[type].color).root;
             var gm = U.Transparent(new Color(0.3f, 0.69f, 0.31f, 0.5f));
             foreach (var r in ghost.GetComponentsInChildren<Renderer>()) { r.sharedMaterial = gm; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; }
             foreach (var c in ghost.GetComponentsInChildren<Collider>()) Destroy(c);
@@ -676,10 +686,11 @@ namespace ZA
                 for (int i = 0; i <= n; i++) { float a = i / (float)n * Mathf.PI * 2; lr.SetPosition(i, new Vector3(Mathf.Cos(a) * range, 0.06f, Mathf.Sin(a) * range)); }
                 placing.ring = ring;
             }
+            if (isBoard) { ui.placeHint.text = $"<b>Brett</b> setzen ({Boards} übrig)  ·  Linksklick setzen  ·  über einer Grube = Falle  ·  Q / Rechtsklick abbrechen"; return; }
             string name = isBarr ? D.barricadeName : D.turret[type].name; int price = isBarr ? D.barricadePrice : D.turret[type].price;
             ui.placeHint.text = $"<b>{name}</b> platzieren (${price})  ·  Linksklick setzen  ·  Q / Rechtsklick abbrechen{(isBarr ? "  ·  steht quer zu deiner Blickrichtung" : "")}";
         }
-        void CancelPlacing() { if (placing == null) return; Destroy(placing.ghost); placing = null; ui.placeHint.text = ""; }
+        void CancelPlacing() { if (placing == null) return; Destroy(placing.ghost); placing = null; ui.placeHint.text = shovelMode ? ShovelHint : ""; }
         bool SpotValid(float x, float z)
         {
             float half = mapDef.size / 2 - 1.5f; if (Mathf.Abs(x) > half || Mathf.Abs(z) > half) return false;
@@ -690,13 +701,14 @@ namespace ZA
             if (Vector2.Distance(new Vector2(x, z), new Vector2(player.Pos.x, player.Pos.z)) < 0.9f) return false;
             return true;
         }
-        bool BarricadeSpotValid(float x, float z, int rot)
+        bool BarricadeSpotValid(float x, float z, int rot, bool board = false)
         {
+            float hw = board ? 0.8f : 1.3f;
             float half = mapDef.size / 2 - 1.5f; if (Mathf.Abs(x) > half || Mathf.Abs(z) > half) return false;
             float gy = World.GroundY(x, z);
             var center = new Vector3(x, gy + 0.95f, z); var q = Quaternion.Euler(0, rot == 1 ? 90 : 0, 0);
-            if (Physics.CheckBox(center, new Vector3(1.3f + 0.25f, 0.5f, 0.25f + 0.25f), q, 1 << Layers.Solid, QueryTriggerInteraction.Ignore)) return false;
-            if (Physics.CheckBox(center, new Vector3(1.3f - 0.35f, 0.45f, 0.25f - 0.1f), q, 1 << Layers.Barricade, QueryTriggerInteraction.Ignore)) return false;
+            if (Physics.CheckBox(center, new Vector3(hw + 0.25f, 0.5f, 0.25f + 0.25f), q, 1 << Layers.Solid, QueryTriggerInteraction.Ignore)) return false;
+            if (Physics.CheckBox(center, new Vector3(hw - 0.35f, 0.45f, 0.25f - 0.1f), q, 1 << Layers.Barricade, QueryTriggerInteraction.Ignore)) return false;
             var p2 = new Vector2(x, z);
             if (Vector2.Distance(p2, new Vector2(player.Pos.x, player.Pos.z)) < 1.6f) return false;
             foreach (var r in ents.remotes.Values) if (r.state == "alive" && Vector2.Distance(p2, new Vector2(r.x, r.z)) < 1.6f) return false;
@@ -706,20 +718,25 @@ namespace ZA
         void UpdatePlacing()
         {
             if (placing == null) return;
-            bool isBarr = placing.type == "barricade"; int price = isBarr ? D.barricadePrice : D.turret[placing.type].price;
+            bool isBoard = placing.type == "board", isBarr = placing.type == "barricade" || isBoard; int price = isBoard ? 0 : isBarr ? D.barricadePrice : D.turret[placing.type].price;
             float x, z; bool blocked = false;
             // Standfläche: Terrain oder eine annähernd waagerechte Fläche (Platten, Straßen); Wände/Schräge gelten als blockiert
             if (Physics.Raycast(cam.transform.position, cam.transform.forward, out var hit, 9, Layers.PlaceMask, QueryTriggerInteraction.Ignore)) { x = hit.point.x; z = hit.point.z; blocked = hit.collider.gameObject.layer != Layers.Ground && (hit.normal.y < 0.85f || hit.point.y > World.GroundY(x, z) + 0.3f); }
             else { var p = cam.transform.position + cam.transform.forward * 5; x = p.x; z = p.z; }
+            Pit overPit = null;
+            if (isBoard) { foreach (var pt in ents.pits.Values) if (!pt.covered && Vector2.Distance(new Vector2(pt.x, pt.z), new Vector2(x, z)) < 0.9f) { overPit = pt; break; } if (overPit != null) { x = overPit.x; z = overPit.z; blocked = false; } }
             placing.x = x; placing.z = z; placing.ghost.transform.position = new Vector3(x, World.GroundY(x, z), z);
-            if (isBarr) { placing.rot = Mathf.Abs(Mathf.Sin(player.yaw)) > 0.707f ? 1 : 0; placing.ghost.transform.rotation = Quaternion.Euler(0, placing.rot == 1 ? 90 : 0, 0); }
+            if (overPit != null) { placing.ghost.transform.rotation = Quaternion.Euler(90, (player.yaw + Mathf.PI) * Mathf.Rad2Deg, 0); placing.ghost.transform.position += Vector3.up * 0.08f; }
+            else if (isBarr) { placing.rot = Mathf.Abs(Mathf.Sin(player.yaw)) > 0.707f ? 1 : 0; placing.ghost.transform.rotation = Quaternion.Euler(0, placing.rot == 1 ? 90 : 0, 0); }
             else placing.ghost.transform.rotation = Quaternion.Euler(0, (player.yaw + Mathf.PI) * Mathf.Rad2Deg, 0);
             string reason = "";
-            if (blocked || (isBarr ? !BarricadeSpotValid(x, z, placing.rot) : !SpotValid(x, z))) reason = "Kein Platz";
+            if (blocked || (overPit == null && (isBarr ? !BarricadeSpotValid(x, z, placing.rot, isBoard) : !SpotValid(x, z)))) reason = "Kein Platz";
+            else if (isBoard && Boards <= 0) reason = "Keine Bretter";
+            else if (isBoard && Vector2.Distance(new Vector2(x, z), new Vector2(player.Pos.x, player.Pos.z)) > 6f) reason = "Zu weit weg";
             else if (money < price) reason = "Zu wenig Geld";
             else if (isBarr && ents.barricades.Count >= D.barricadeMax) reason = "Barrikaden-Limit erreicht";
             else if (!isBarr && ents.turrets.Count >= D.maxTurrets) reason = "Turm-Limit erreicht";
-            else if (!CanShopLocal()) reason = "Nur nahe am Shop während Wellen";
+            else if (!isBoard && !CanShopLocal()) reason = "Nur nahe am Shop während Wellen";
             placing.valid = reason == ""; placing.reason = reason;
             var col = placing.valid ? new Color(0.3f, 0.69f, 0.31f, 0.5f) : new Color(0.96f, 0.26f, 0.21f, 0.5f);
             foreach (var m in placing.mats) U.SetColor(m, col);
@@ -733,6 +750,110 @@ namespace ZA
             Invoke(nameof(UnpendPlacing), 0.8f);
         }
         void UnpendPlacing() { if (placing != null) placing.pending = false; }
+
+        // ------------------------------------------------------------------ Schaufel
+        string ShovelHint => $"<b>Schaufel</b>  ·  Linksklick: Grube graben ({ents.pits.Count}/{D.pitMax})  ·  Rechtsklick: Brett setzen ({Boards} übrig)  ·  X / Waffentaste: zurück zur Waffe";
+        void SetShovelMode(bool on)
+        {
+            if (on && !HasShovel) return;
+            shovelMode = on; digT = 0; ui.Progress(null);
+            if (placing != null && placing.type == "board") CancelPlacing();
+            if (shovelVm == null) { shovelVm = Models.BuildShovel(); shovelVm.transform.SetParent(cam.transform, false); foreach (var t in shovelVm.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = Layers.ViewModel; }
+            shovelVm.SetActive(on); player.SetVmVisible(!on && state == "alive" && !player.thirdPerson);
+            ui.placeHint.text = on ? ShovelHint : ""; player.switchT = 0.3f;
+            sfx.Play("place", null, 0.5f, on ? 1.3f : 0.9f);
+        }
+        void StartBoardPlacing()
+        {
+            if (!shovelMode) return;
+            if (Boards <= 0) { ui.Toast("Keine Bretter – im Shop unter Ausrüstung nachkaufen", "bad"); sfx.Play("deny"); return; }
+            StartPlacing("board");
+        }
+        /// <summary>Zielpunkt zum Graben: Boden (Terrain oder flache Platte) in Reichweite</summary>
+        bool DigTarget(out Vector3 p)
+        {
+            p = default;
+            if (!Physics.Raycast(cam.transform.position, cam.transform.forward, out var hit, D.shovelReach + 1.2f, Layers.PlaceMask, QueryTriggerInteraction.Ignore)) return false;
+            if (hit.collider.gameObject.layer == Layers.Barricade) return false;
+            if (hit.collider.gameObject.layer != Layers.Ground && (hit.normal.y < 0.85f || hit.point.y > World.GroundY(hit.point.x, hit.point.z) + 0.3f)) return false;
+            if (Vector2.Distance(new Vector2(hit.point.x, hit.point.z), new Vector2(player.Pos.x, player.Pos.z)) > D.shovelReach) return false;
+            p = hit.point; return true;
+        }
+        void UpdateShovel(float dt, bool clicked)
+        {
+            if (!shovelVm) return;
+            if (digT > 0)
+            {
+                digT -= dt;
+                if (Vector3.Distance(player.Pos, digStart) > 0.7f || state != "alive") { digT = 0; ui.Progress(null); ui.Toast("Graben abgebrochen", "info", 1f); }
+                else
+                {
+                    ui.Progress(1 - digT / digTotal);
+                    float ph = (digTotal - digT) * 2.6f; float swing = Mathf.Max(0, Mathf.Sin(ph * Mathf.PI * 2));
+                    if (swing > 0.97f && shovelSwing < 0.97f) { fx.Burst(digPos + Vector3.up * 0.15f, U.C("#3f3024"), 9, 2.4f, 0.07f, 0.7f, 2f); sfx.Play("woodhit", digPos, 0.5f, 0.6f); }
+                    shovelSwing = swing;
+                    if (digT <= 0) { ui.Progress(null); net.Send("t", "dig", "x", Math.Round(digPos.x, 2), "z", Math.Round(digPos.z, 2)); }
+                }
+            }
+            else if (clicked && strikeCd <= 0 && ZombieInSwing() != null) ShovelStrike();
+            else if (clicked && digT <= 0 && strikeT <= 0)
+            {
+                if (ents.pits.Count >= D.pitMax) { ui.Toast($"Maximal {D.pitMax} Gruben", "bad"); sfx.Play("deny"); }
+                else if (!DigTarget(out digPos)) { ui.Toast("Hier kann man nicht graben – auf den Boden in Reichweite zielen", "bad", 1.5f); sfx.Play("deny"); }
+                else if (ents.pits.Values.Any(p => Vector2.Distance(new Vector2(p.x, p.z), new Vector2(digPos.x, digPos.z)) < D.pitRadius * 1.8f)) { ui.Toast("Hier ist schon eine Grube", "bad", 1.2f); sfx.Play("deny"); }
+                else { digT = digTotal = D.digTime; digStart = player.Pos; shovelSwing = 0; }
+            }
+            // Haltung: unten rechts; Graben = Stoß nach vorn-unten; Schlag = weiter Schwung von rechts oben nach links unten
+            strikeCd -= dt; if (strikeT > 0) strikeT -= dt;
+            float dig = digT > 0 ? Mathf.Max(0, Mathf.Sin((digTotal - digT) * 2.6f * Mathf.PI * 2)) : 0;
+            float sw = strikeT > 0 ? Mathf.Sin(Mathf.Clamp01(1 - strikeT / 0.4f) * Mathf.PI) : 0;
+            float bob = Mathf.Sin(T * 7f) * 0.004f * (player.moving ? 1 : 0);
+            shovelVm.transform.localPosition = new Vector3(0.26f - dig * 0.05f - sw * 0.3f, -0.30f + bob - dig * 0.16f - sw * 0.08f, 0.42f + dig * 0.12f + sw * 0.1f);
+            shovelVm.transform.localRotation = Quaternion.Euler(-8f + dig * 42f + sw * 10f, 188f - sw * 55f, 12f - dig * 6f + sw * 70f);
+        }
+        /// <summary>Zombie im Schlagbereich der Schaufel (vor dem Spieler, in Reichweite)</summary>
+        Zombie ZombieInSwing()
+        {
+            var f = cam.transform.forward; var me = player.Pos; Zombie best = null; float bd = 1e9f;
+            foreach (var zz in ents.zombies.Values)
+            {
+                if (zz.dying || zz.rise > 0) continue;
+                float dx = zz.x - me.x, dz = zz.z - me.z, d = Mathf.Sqrt(dx * dx + dz * dz);
+                if (d > D.shovelHitRange + zz.cfg.radius) continue;
+                float dot = (dx * f.x + dz * f.z) / Mathf.Max(d, 1e-3f); if (dot < 0.45f) continue;
+                if (d < bd) { bd = d; best = zz; }
+            }
+            return best;
+        }
+        /// <summary>Schlag mit der Schaufel: trifft alle Zombies im Bogen vor dem Spieler, kräftiger als das Messer</summary>
+        void ShovelStrike()
+        {
+            if (state != "alive") return;
+            strikeCd = D.shovelHitRate; strikeT = 0.4f; sfx.Play("swing", null, 1f, 0.75f);
+            var f = cam.transform.forward; var hits = new List<object>(); bool any = false, head = false; var me = player.Pos;
+            foreach (var zz in ents.zombies.Values)
+            {
+                if (zz.dying || zz.rise > 0) continue;
+                float dx = zz.x - me.x, dz = zz.z - me.z, d = Mathf.Sqrt(dx * dx + dz * dz);
+                if (d > D.shovelHitRange + zz.cfg.radius) continue;
+                float dot = (dx * f.x + dz * f.z) / Mathf.Max(d, 1e-3f); if (dot < 0.45f) continue;
+                bool isHead = player.pitch > -0.12f && zz.cfg.scale <= 1.2f && !zz.cfg.crawl;
+                float dmg = D.shovelHitDamage * (isHead ? 1.5f : 1);
+                hits.Add(new List<object> { zz.id, Mathf.RoundToInt(dmg), isHead ? 1 : 0 }); zz.flash = 1; any = true; head |= isHead;
+                var hp0 = new Vector3(zz.x, (isHead ? 1.6f : 1.2f) * zz.cfg.scale, zz.z); fx.Blood(hp0, f, isHead); fx.Sparks(hp0, null);
+            }
+            if (any) { net.Send("t", "hit", "w", "shovel", "hits", hits); sfx.Play(head ? "headshot" : "hit", null, 1f, 0.7f); ui.Hitmarker(head); fx.shake = Mathf.Max(fx.shake, 0.25f); }
+        }
+        public string DebugShovelStrike() { var z = ZombieInSwing(); ShovelStrike(); return z != null ? $"schlag auf {z.type} hp={z.hp:0}" : "kein Zombie in Reichweite"; }
+        public Vector3 DebugPlayerPos => player.Pos;
+        public void DebugBuy(string item) => net.Send("t", "buy", "item", item);
+        public void DebugShovel(bool on) => SetShovelMode(on);
+        /// <summary>Selbsttest: sofort graben (ohne Wartezeit) am Zielpunkt; liefert Ergebnis</summary>
+        public string DebugDig() { if (!DigTarget(out var p)) return "kein Ziel"; net.Send("t", "dig", "x", Math.Round(p.x, 2), "z", Math.Round(p.z, 2)); return $"dig {p.x:0.0}/{p.z:0.0}"; }
+        public string DebugBoardAt(float x, float z) { StartPlacing("board"); placing.x = x; placing.z = z; placing.valid = true; TryPlace(); return $"board {x:0.0}/{z:0.0} boards={Boards}"; }
+        public Vector2? DebugNewestPit => ents.pits.Values.OrderByDescending(p => p.id).Select(p => (Vector2?)new Vector2(p.x, p.z)).FirstOrDefault();
+        public string DebugShovelInfo() { if (!shovelVm) return "kein shovelVm"; var rs = shovelVm.GetComponentsInChildren<Renderer>(); var blade = shovelVm.transform.Find("blade"); return $"shovel active={shovelVm.activeInHierarchy} mode={shovelMode} renderers={rs.Length} visible={rs.Count(r => r.isVisible)} layer={rs[0].gameObject.layer} bladeLocal={(blade ? cam.transform.InverseTransformPoint(blade.position).ToString("F2") : "-")} camMask={cam.cullingMask}"; }
+        public string DebugPits() => string.Join(" | ", ents.pits.Values.Select(p => $"{p.id}@{p.x:0.0}/{p.z:0.0}{(p.covered ? " covered" : "")}")) + $" boards={Boards} barricades={string.Join(",", ents.barricades.Values.Select(b => b.kind + (b.pit != 0 ? "p" : "")))}";
 
         // ------------------------------------------------------------------ Shop / Kiste
         int lastShopMoney; bool lastShopCan;
@@ -754,6 +875,10 @@ namespace ZA
             else if (D.turret.ContainsKey(item)) { CancelPlacing(); ui.Toast($"{D.turret[item].name} platziert!", "good"); }
             else if (item == "barricade") { bool again = placing != null && placing.type == "barricade"; CancelPlacing(); ui.Toast("Barrikade gebaut!", "good"); if (again && money - D.barricadePrice >= D.barricadePrice) StartPlacing("barricade"); }
             else if (item == "ammo") { foreach (var id in owned) InitAmmo(id); ui.Toast("Munition aufgefüllt!", "good"); }
+            else if (item == "shovel") ui.Toast("Schaufel gekauft – mit X ausrüsten, Linksklick gräbt, Rechtsklick setzt Bretter", "good", 4.5f);
+            else if (item == "boards") ui.Toast("Bretter gekauft – mit der Schaufel (X) per Rechtsklick setzen", "good");
+            else if (item == "board") { bool again = placing != null && placing.type == "board" && Boards > 1; CancelPlacing(); ui.Toast("Brett gesetzt", "good", 1.2f); if (again) StartBoardPlacing(); }
+            else if (item == "dig") { }
             else if (item == "nades") ui.Toast("Granaten gekauft – werfen mit G", "good");
             else ui.Toast(item switch { "heal" => "Geheilt!", "armor" => "Schutzweste angelegt!", "repair" => "Generator repariert!", "fixturrets" => "Türme repariert!", "fixbarr" => "Barrikaden repariert!", _ => "Gekauft!" }, "good");
             RefreshShop();
@@ -802,11 +927,13 @@ namespace ZA
             if ((kb.cKey.wasPressedThisFrame || (ms != null && ms.middleButton.wasPressedThisFrame)) && placing == null) MeleeAttack();
             if (kb.eKey.wasPressedThisFrame && NearCrate() && !ents.remotes.Values.Any(r => r.state == "down" && Vector2.Distance(new Vector2(r.x, r.z), new Vector2(player.Pos.x, player.Pos.z)) < 2.6f)) UseCrate();
             if (kb.fKey.wasPressedThisFrame && flashlight) { flashOn = !flashOn; flashlight.enabled = flashOn; }
+            if (kb.xKey.wasPressedThisFrame && state == "alive") { if (HasShovel) SetShovelMode(!shovelMode); else ui.Toast("Dafür brauchst du die Schaufel (Shop → Ausrüstung)", "info"); }
             for (int d = 1; d <= 7; d++) if (kb[(Key)((int)Key.Digit1 + d - 1)].wasPressedThisFrame) { var w = D.weapons.Find(x => x.slot == d); if (w != null) Equip(w.id); }
             if (ms != null)
             {
                 if (ms.leftButton.wasPressedThisFrame) mouseClicked = true; mouseDown = ms.leftButton.isPressed;
                 if (ms.rightButton.wasPressedThisFrame && placing != null) CancelPlacing();
+                else if (ms.rightButton.wasPressedThisFrame && shovelMode && digT <= 0) StartBoardPlacing();
                 rightDown = ms.rightButton.isPressed;
                 float scroll = ms.scroll.ReadValue().y; if (Mathf.Abs(scroll) > 0.01f && placing == null) CycleWeapon(scroll < 0 ? 1 : -1);
             }
@@ -829,7 +956,7 @@ namespace ZA
             else if (state == "down") ui.Downed($"{(ents.remotes.Count > 0 ? $"Ausbluten in <b>{Mathf.CeilToInt(downT)}s</b> – warte auf einen Mitspieler!" : "Selbstwiederbelebung läuft…")}{(rev > 0 ? $"\nWiederbelebung: {Mathf.RoundToInt(rev * 100)}%" : "")}");
             else ui.Downed(null);
             bool scoped = weapon == "sniper" && player.aim > 0.9f && alive;
-            UI.Show(ui.scope, scoped); player.SetVmVisible(alive && !scoped && !player.thirdPerson);
+            UI.Show(ui.scope, scoped); player.SetVmVisible(alive && !scoped && !player.thirdPerson && !shovelMode); if (shovelVm) shovelVm.SetActive(shovelMode && alive && !player.thirdPerson);
             sfx.listener = cam.transform;
             // Interaktionen
             string promptTxt = null; float? prog = null;
@@ -867,6 +994,7 @@ namespace ZA
             bool wantAim = active && rightDown && player.reloadT <= 0 && !sprinting && placing == null;
             player.aim += ((wantAim ? 1 : 0) - player.aim) * Mathf.Min(1, dt * 12);
             if (placing != null) { if (clicked) TryPlace(); return; }
+            if (shovelMode) { UpdateShovel(dt, clicked); return; }
             if (weapon == "minigun") { float prev = player.spin; player.spin = firing && player.reloadT <= 0 && player.switchT <= 0 ? Mathf.Min(1, player.spin + dt / w.spinup) : Mathf.Max(0, player.spin - dt * 1.2f); if (prev == 0 && player.spin > 0) sfx.Play("spin"); }
             bool want = w.auto ? firing : clicked;
             if (want && fireCd <= 0 && player.switchT <= 0 && player.reloadT <= 0 && player.meleeT <= 0 && player.nadeT <= 0)
@@ -899,7 +1027,7 @@ namespace ZA
             ui.ammoText.text = a.mag.ToString(); ui.ammoText.color = a.mag <= Mathf.CeilToInt(w.mag * 0.25f) ? UI.Red : UI.Bone; ui.reserveText.text = weapon == "pistol" ? "/ ∞" : "/ " + a.res;
             UI.Show(ui.reloadText.gameObject, player.reloadT > 0);
             ui.slotsText.text = string.Join("  ", owned.Select(id => { var wd = D.weapon[id]; int t = upg.TryGetValue(id, out var tt) ? tt : 0; string s = $"{wd.slot} {(id == weapon ? "<color=#ffca28><b>" : "")}{wd.name}{(t > 0 ? " " + D.upgrade.names[t] : "")}{(id == weapon ? "</b></color>" : "")}"; return s; }));
-            ui.gearText.text = $"💣 {nades}   {string.Join(" ", perks.Select(p => D.perk[p].icon))}";
+            ui.gearText.text = $"💣 {nades}{(HasShovel ? $"   ⛏{(shovelMode ? "<color=#ffca28>●</color>" : "")} 🪵 {Boards}" : "")}   {string.Join(" ", perks.Select(p => D.perk[p].icon))}";
             var pus = new List<string>(); string[] puIds = { "instakill", "double", "freeze" };
             for (int i = 0; i < 3; i++) if (pu[i] > 0) { var c = D.powerup[puIds[i]]; pus.Add($"<color={c.color}><b>{c.icon} {c.name} {Mathf.CeilToInt(pu[i])}s</b></color>"); }
             ui.powerupText.text = string.Join("   ", pus);

@@ -379,8 +379,10 @@ namespace ZA
             {
                 foreach (var it in D.items)
                 {
-                    string extra = it.id == "nades" ? $" ({nades}/{D.grenadeMax})" : "";
-                    string icon = it.id switch { "ammo" => "📦", "nades" => "💣", "heal" => "❤", "armor" => "🛡", "repair" => "🔧", "fixturrets" => "🛠", _ => "🪵" };
+                    var gm = Game.I;
+                    string extra = it.id == "nades" ? $" ({nades}/{D.grenadeMax})" : it.id == "boards" ? $" ({gm?.Boards ?? 0}/{D.boardsMax})" : it.id == "shovel" && gm != null && gm.HasShovel ? " ✓" : "";
+                    string icon = it.id switch { "ammo" => "📦", "nades" => "💣", "heal" => "❤", "armor" => "🛡", "repair" => "🔧", "fixturrets" => "🛠", "shovel" => "⛏", "boards" => "🪵", _ => "🪵" };
+                    if (it.id == "shovel" && gm != null && gm.HasShovel) { Card(icon, it.name + extra, it.desc, "Gekauft · Taste X", Grey, true, null); continue; }
                     Card(icon, it.name + extra, it.desc, M(it.price), Green, Dis(it.price), () => onBuy(it.id));
                 }
             }

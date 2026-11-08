@@ -5,7 +5,7 @@ import { MAPS, MAP_ORDER } from '../shared/maps.js';
 import { getSolids } from '../shared/geom.js';
 const pick = (o, keys) => Object.fromEntries(keys.map(k => [k, o[k]]));
 const cfg = pick(C, ['TICK_RATE', 'START_MONEY', 'PREP_TIME_FIRST', 'PREP_TIME', 'WAVE_BONUS', 'HIT_REWARD', 'PLAYER_MAX_HP', 'PLAYER_MAX_ARMOR', 'REVIVE_TIME', 'BLEEDOUT_TIME', 'SHOP_RADIUS', 'MAX_TURRETS', 'PLAYER_COLORS',
-  'DIFFS', 'DIFF_ORDER', 'WEAPONS', 'WEAPON_ORDER', 'UPGRADE', 'TURRETS', 'TURRET_ORDER', 'BARRICADE', 'GRENADE', 'MELEE', 'ITEMS', 'ITEM_ORDER', 'PERKS', 'PERK_ORDER', 'MAX_PERKS',
+  'DIFFS', 'DIFF_ORDER', 'WEAPONS', 'WEAPON_ORDER', 'UPGRADE', 'TURRETS', 'TURRET_ORDER', 'BARRICADE', 'SHOVEL', 'BOARDS', 'GRENADE', 'MELEE', 'ITEMS', 'ITEM_ORDER', 'PERKS', 'PERK_ORDER', 'MAX_PERKS',
   'POWERUPS', 'POWERUP_ORDER', 'CRATE', 'ZOMBIES', 'ZOMBIE_TYPES', 'GENERATOR_HP', 'BODY', 'WAVE_KINDS']);
 // Listen in Objekt-Arrays umwandeln (JsonUtility kann keine Dictionaries)
 const asList = (obj, order) => order.map(id => ({ id, ...obj[id] }));

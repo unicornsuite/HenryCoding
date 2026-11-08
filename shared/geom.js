@@ -59,12 +59,14 @@ export function buildGrid(map, solids, cell = 1, margin = 0.35) {
   return {
     n, cell, half, blocked, cost,
     /** Setzt Zusatzkosten für alle Zellen, die eine der AABBs berühren. */
+    /** boxes: AABBs mit optionalem Feld `cost` (sonst `value`) */
     setCosts(boxes, value, m = 0.3) {
       cost.fill(0);
       for (const b of boxes) {
+        const v = b.cost ?? value;
         const gx0 = Math.max(0, Math.floor((b.minX - m + half) / cell)), gx1 = Math.min(n - 1, Math.floor((b.maxX + m + half) / cell));
         const gz0 = Math.max(0, Math.floor((b.minZ - m + half) / cell)), gz1 = Math.min(n - 1, Math.floor((b.maxZ + m + half) / cell));
-        for (let gz = gz0; gz <= gz1; gz++) for (let gx = gx0; gx <= gx1; gx++) cost[gz * n + gx] = value;
+        for (let gz = gz0; gz <= gz1; gz++) for (let gx = gx0; gx <= gx1; gx++) cost[gz * n + gx] = Math.max(cost[gz * n + gx], v);
       }
     },
     toCell(x, z) {
@@ -141,7 +143,11 @@ export function dist2(ax, az, bx, bz) { const dx = ax - bx, dz = az - bz; return
 
 export const BARRICADE_SIZE = { w: 2.6, d: 0.5, h: 1.2 };
 /** AABB einer Barrikade (rot 0 = entlang X, 1 = entlang Z) */
+export const BOARD_SIZE = { w: 1.6, d: 0.5, h: 0.95 }; // Brett (Schaufel): kürzer und niedriger als die Barrikade
 export function barricadeBox(b) {
-  const w = b.rot ? BARRICADE_SIZE.d : BARRICADE_SIZE.w, d = b.rot ? BARRICADE_SIZE.w : BARRICADE_SIZE.d;
-  return { minX: b.x - w / 2, maxX: b.x + w / 2, minZ: b.z - d / 2, maxZ: b.z + d / 2, minY: 0, maxY: BARRICADE_SIZE.h, kind: 'barricade', id: b.id };
+  const S = b.kind === 'board' ? BOARD_SIZE : BARRICADE_SIZE;
+  const w = b.rot ? S.d : S.w, d = b.rot ? S.w : S.d;
+  return { minX: b.x - w / 2, maxX: b.x + w / 2, minZ: b.z - d / 2, maxZ: b.z + d / 2, minY: 0, maxY: S.h, kind: b.kind || 'barricade', id: b.id };
 }
+/** Quadratischer Kasten um eine Grube (für Wegkosten) */
+export function pitBox(p, r) { return { minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r, minY: 0, maxY: 0.1, kind: 'pit', id: p.id }; }

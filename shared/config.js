@@ -68,19 +68,27 @@ export const TURRETS = {
 export const TURRET_ORDER = ['mg', 'cannon', 'tesla'];
 export const BARRICADE = { name: 'Barrikade', price: 350, hp: 500, max: 32, desc: 'Holzwall, den Zombies erst zerlegen müssen. Spieler springen drüber. Zombies suchen lieber einen Umweg, wenn es einen gibt.' };
 
+// Schaufel: Werkzeug zum Graben von Gruben und Setzen von Brettern (Taste X in der Unity-Version)
+export const SHOVEL = { name: 'Schaufel', price: 350, digTime: 2.2, reach: 3.2, pitRadius: 1.05, pitMax: 24, slow: 0.3, trapStun: 2.2, trapDamage: 45, hitDamage: 110, hitRange: 2.6, hitRate: 0.8, hitStun: 0.45,
+  desc: 'Werkzeug (Taste X). Linksklick auf einen Zombie: kräftiger Schlag mit dem Blatt (wirft ihn kurz zurück). Linksklick auf den Boden: Grube graben – Zombies kommen darin kaum voran und meiden sie. Mit Brettern abgedeckt wird eine Grube zur Falle: Zombies brechen ein, bleiben stecken und nehmen Schaden.' };
+export const BOARDS = { name: 'Bretter ×4', price: 140, pack: 4, max: 20, hp: 160, boardMax: 40,
+  desc: '4 Bretter für die Schaufel (Rechtsklick): leichter Holzzaun, den Zombies einschlagen müssen – oder über eine Grube gelegt als Falle.' };
+
 export const GRENADE = { name: 'Handgranaten', price: 300, pack: 3, max: 6, damage: 240, splash: 5, fuse: 1.8, desc: '3 Stück. Werfen mit G, hüpfen und explodieren nach kurzer Zeit.' };
 export const MELEE = { name: 'Messer', damage: 70, range: 2.3, rate: 0.55, desc: 'Nahkampf mit V – spart Munition.' };
 
 export const ITEMS = {
   ammo:   { name: 'Munitionskiste',   price: 250,  desc: 'Füllt die Munition aller Waffen auf.' },
   nades:  { name: 'Handgranaten ×3',  price: GRENADE.price, desc: GRENADE.desc },
+  shovel: { name: SHOVEL.name,        price: SHOVEL.price, desc: SHOVEL.desc, unityOnly: true },
+  boards: { name: BOARDS.name,        price: BOARDS.price, desc: BOARDS.desc, unityOnly: true },
   heal:   { name: 'Medikit',          price: 200,  desc: 'Heilt dich vollständig.' },
   armor:  { name: 'Schutzweste',      price: 450,  desc: '+50 Panzerung (max. 100). Fängt 60% Schaden ab.' },
   repair: { name: 'Generator reparieren', price: 600, desc: 'Repariert den Generator um 30%.' },
   fixturrets: { name: 'Türme reparieren', price: 400, desc: 'Repariert alle deine Türme vollständig.' },
   fixbarr: { name: 'Barrikaden reparieren', price: 300, desc: 'Repariert alle Barrikaden des Teams vollständig.' },
 };
-export const ITEM_ORDER = ['ammo', 'nades', 'heal', 'armor', 'repair', 'fixturrets', 'fixbarr'];
+export const ITEM_ORDER = ['ammo', 'nades', 'shovel', 'boards', 'heal', 'armor', 'repair', 'fixturrets', 'fixbarr'];
 
 // Perks: einmal pro Spiel kaufen, bleiben bis zum Ende
 export const PERKS = {

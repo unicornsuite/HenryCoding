@@ -382,15 +382,92 @@ namespace ZA
             return cp;
         }
 
+        /// <summary>Verwittertes Holz (Bretterstruktur + Maserungs-Normalmap), gedeckte Farben passend zur Ruinenstadt</summary>
+        public static Material Wood(string hex, float smooth = 0.16f) => U.MatN(hex, U.PlankTex(), U.PlankNormal(), smooth, 1.1f);
+        static Material RustMetal => U.NewMat(U.C("#4a4441"), 0.75f, 0.32f, null, null, 0, U.NoiseNormal(), 0.9f);
         public static GameObject BuildBarricade()
         {
             var root = new GameObject("barricade"); var r = root.transform;
-            Material wood = U.Mat("#8d6e63"), dark = U.Mat("#5d4037"), metal = U.Mat("#9e9e9e", 0.6f, 0.6f);
+            Material wood = Wood("#6a5a46"), dark = Wood("#45382c"), metal = RustMetal;
             foreach (var x in new[] { -1.05f, 1.05f }) U.Box(r, dark, x, 0.6f, 0, 0.18f, 1.2f, 0.18f);
             foreach (var (y, rz) in new[] { (0.3f, 0.03f), (0.65f, -0.02f), (1.0f, 0.04f) }) U.Box(r, wood, 0, y, 0.1f, 2.6f, 0.22f, 0.08f, 0, 0, rz);
             foreach (var x in new[] { -0.8f, 0.8f }) U.Box(r, dark, x, 0.55f, -0.35f, 0.12f, 1.3f, 0.12f, -0.5f);
             for (int i = 0; i < 5; i++) U.Box(r, metal, -1 + i * 0.5f, 1.22f, 0, 0.06f, 0.06f, 0.3f, 0, 0.6f, 0, false);
             U.Box(r, metal, 0, 1.25f, 0, 2.4f, 0.03f, 0.03f, 0, 0, 0, false);
+            return root;
+        }
+
+        /// <summary>Brett (Schaufel): zwei Pflöcke, drei angenagelte, verwitterte Bretter, 1,6 m breit</summary>
+        public static GameObject BuildBoard()
+        {
+            var root = new GameObject("board"); var r = root.transform;
+            var rnd = U.Rng(root.GetInstanceID() & 0xffff);
+            Material[] woods = { Wood("#6b5b47"), Wood("#5c4c3a"), Wood("#766551"), Wood("#4f4234") };
+            foreach (var x in new[] { -0.62f, 0.62f }) U.Box(r, woods[3], x, 0.5f, -0.04f, 0.1f, 1.0f + rnd() * 0.08f, 0.1f, 0, 0, (rnd() - 0.5f) * 0.05f);
+            foreach (var (y, rz) in new[] { (0.28f, 0.03f), (0.55f, -0.025f), (0.82f, 0.04f) })
+            {
+                var pl = U.Box(r, woods[(int)(rnd() * 3)], (rnd() - 0.5f) * 0.1f, y, 0.03f, 1.6f + rnd() * 0.12f, 0.17f + rnd() * 0.04f, 0.045f, 0, 0, rz + (rnd() - 0.5f) * 0.02f);
+                foreach (var x in new[] { -0.62f, 0.62f }) U.Cyl(r, RustMetal, x + (rnd() - 0.5f) * 0.03f, y + (rnd() - 0.5f) * 0.04f, 0.06f, 0.012f, 0.02f, Mathf.PI / 2, 0, 0, false);
+            }
+            return root;
+        }
+        /// <summary>Bretter flach über eine Grube gelegt (Falle): fünf lose Planken quer</summary>
+        public static GameObject BuildPitCover(float radius)
+        {
+            var root = new GameObject("pitcover"); var r = root.transform;
+            var rnd = U.Rng(root.GetInstanceID() & 0xffff);
+            Material[] woods = { Wood("#6b5b47"), Wood("#5c4c3a"), Wood("#766551") };
+            int n = 5; float span = radius * 2.1f;
+            for (int i = 0; i < n; i++)
+            {
+                float z = -radius * 0.8f + i * (radius * 1.6f / (n - 1)) + (rnd() - 0.5f) * 0.08f;
+                float len = Mathf.Sqrt(Mathf.Max(0.2f, radius * radius * 1.25f - z * z)) * 2 + 0.5f;
+                U.Box(r, woods[i % 3], (rnd() - 0.5f) * 0.25f, 0.035f + (i % 2) * 0.02f, z, Mathf.Min(span, len), 0.05f, 0.2f + rnd() * 0.05f, 0, (rnd() - 0.5f) * 0.12f, (rnd() - 0.5f) * 0.03f);
+            }
+            return root;
+        }
+        /// <summary>Grube: dunkler Erd-Decal auf dem Boden, Aushub als Erdwall ringsum</summary>
+        public static GameObject BuildPit(float radius)
+        {
+            var root = new GameObject("pit"); var r = root.transform;
+            var rnd = U.Rng(root.GetInstanceID() & 0xffff);
+            if (U.DecalBase != null)
+            {
+                var dgo = new GameObject("hole"); dgo.transform.SetParent(r, false); dgo.transform.localPosition = new Vector3(0, 0.6f, 0); dgo.transform.localRotation = Quaternion.Euler(90, rnd() * 360, 0);
+                var dp = dgo.AddComponent<UnityEngine.Rendering.HighDefinition.DecalProjector>();
+                var dm = new Material(U.DecalBase); dm.SetTexture("_BaseColorMap", U.PitTex()); dm.EnableKeyword("_COLORMAP"); dm.SetColor("_BaseColor", new Color(0.09f, 0.06f, 0.04f, 1f)); dm.SetFloat("_Smoothness", 0.05f); dm.SetFloat("_DecalBlend", 1f);
+                dp.material = dm; dp.pivot = new Vector3(0, 0, 0.6f); dp.size = new Vector3(radius * 2.3f, radius * 2.3f, 1.2f); dp.drawDistance = 150;
+            }
+            var soil = U.NewMat(U.C("#3f3024"), 0, 0.1f, U.StoneTex(), null, 0, U.NoiseNormal(), 1.4f);
+            var soil2 = U.NewMat(U.C("#4a3a2c"), 0, 0.1f, U.StoneTex(), null, 0, U.NoiseNormal(), 1.4f);
+            int n = 14;
+            for (int i = 0; i < n; i++)
+            {
+                float a = i * Mathf.PI * 2 / n + (rnd() - 0.5f) * 0.3f, rad = radius * (1.02f + rnd() * 0.18f);
+                float sx = 0.3f + rnd() * 0.3f, sy = 0.12f + rnd() * 0.12f, sz = 0.25f + rnd() * 0.25f;
+                var clump = U.Prim(PrimitiveType.Sphere, r, rnd() > 0.5f ? soil : soil2, new Vector3(Mathf.Cos(a) * rad, sy * 0.25f, Mathf.Sin(a) * rad), new Vector3(sx, sy, sz), new Vector3(0, -a * Mathf.Rad2Deg + rnd() * 40, 0));
+            }
+            for (int i = 0; i < 10; i++) { float a = rnd() * Mathf.PI * 2, rad = radius * (1.25f + rnd() * 0.5f); U.Prim(PrimitiveType.Sphere, r, soil, new Vector3(Mathf.Cos(a) * rad, 0.02f, Mathf.Sin(a) * rad), new Vector3(0.08f + rnd() * 0.1f, 0.05f, 0.08f + rnd() * 0.1f), null, false, false); }
+            return root;
+        }
+        /// <summary>Schaufel (Waffenmodell): Holzstiel, rostiges Stahlblatt, D-Griff. Ursprung am unteren Stielende, Blatt zeigt nach -Z (vorn)</summary>
+        public static GameObject BuildShovel()
+        {
+            var root = new GameObject("shovel"); var r = root.transform;
+            var wood = U.MatN("#5a4632", U.BarkTex(), U.NoiseNormal(), 0.2f, 0.7f);
+            var steel = U.NewMat(U.C("#55585a"), 0.9f, 0.42f, null, null, 0, U.NoiseNormal(), 0.5f);
+            var rust = U.NewMat(U.C("#5a3b26"), 0.5f, 0.25f, null, null, 0, U.NoiseNormal(), 1.1f);
+            // Stiel entlang -Z (nach vorn), 1,05 m
+            U.Cyl(r, wood, 0, 0, -0.5f, 0.021f, 1.0f, Mathf.PI / 2);
+            // D-Griff hinten
+            U.Box(r, steel, 0, 0, 0.03f, 0.03f, 0.03f, 0.08f); U.Box(r, wood, 0, 0.065f, 0.12f, 0.028f, 0.13f, 0.028f); U.Box(r, wood, 0, -0.065f, 0.12f, 0.028f, 0.13f, 0.028f); U.Cyl(r, wood, 0, 0, 0.18f, 0.016f, 0.14f);
+            // Zwinge und Blatt vorn: leicht geknickt, Rost an den Kanten
+            U.Cyl(r, rust, 0, 0, -1.0f, 0.03f, 0.1f, Mathf.PI / 2);
+            var blade = new GameObject("blade").transform; blade.SetParent(r, false); blade.localPosition = new Vector3(0, -0.02f, -1.06f); blade.localRotation = Quaternion.Euler(12, 0, 0);
+            U.Box(blade, steel, 0, 0, -0.14f, 0.22f, 0.012f, 0.28f);
+            U.Box(blade, rust, 0, 0.004f, -0.27f, 0.2f, 0.01f, 0.05f); U.Box(blade, rust, -0.105f, 0.004f, -0.14f, 0.02f, 0.01f, 0.28f); U.Box(blade, rust, 0.105f, 0.004f, -0.14f, 0.02f, 0.01f, 0.28f);
+            U.Box(blade, steel, 0, 0.02f, -0.03f, 0.12f, 0.03f, 0.08f); // Tritt
+            foreach (var t in root.GetComponentsInChildren<Renderer>()) { t.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; t.receiveShadows = false; }
             return root;
         }
 

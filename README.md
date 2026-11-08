@@ -37,6 +37,7 @@ Zombie · Renner (schnell) · Brocken (zäh) · Explodierer (platzt) · Kriecher
 - **Glückskiste** neben dem Generator: $950, E drücken, Zufallswaffe (mit Glück aufgewertet).
 - **Barrikaden** (Shop → Geschütztürme): Holzwälle, die Zombies erst einschlagen müssen. Sie stehen quer zu deiner Blickrichtung, lassen sich lückenlos aneinanderreihen, und du kannst drüberspringen. Zombies nehmen lieber einen Umweg, wenn es einen gibt – also baut Engstellen und stellt Türme dahinter.
 - **Handgranaten** (G) und **Messer** (V).
+- **Schaufel** (Shop → Ausrüstung, Taste X; nur Unity-Version): Linksklick auf Zombies = kräftiger Schlag, Linksklick auf den Boden = Grube graben (Zombies kommen darin kaum voran und meiden sie), Rechtsklick = Bretter setzen. Bretter über einer Grube machen daraus eine Falle: Zombies brechen ein, stecken fest und nehmen Schaden.
 - **Kill-Serien** bringen Bonusgeld und Ansagen; **Kopfschüsse** lassen Köpfe platzen.
 - **7 Zombie-Arten**: Zombie, Renner, Brocken, Explodierer, Kriecher (schnell, flach), Spucker (Säure aus der Distanz) und der Koloss.
 - **Spezialwellen**: alle 3 Wellen Blitzwelle (nur Renner/Kriecher), alle 5 Wellen Boss, ab Welle 8 alle 4 Wellen Horde.

@@ -22,7 +22,8 @@ namespace ZA
         public Models.GunParts gun; public string gunType = "";
     }
     public class Turret { public int id; public string type; public Models.TurretParts parts; public float x, z, yaw, tyaw, hp = 100; public int owner, muzzleIdx; public HealthBar bar; public Collider col; }
-    public class Barricade { public int id; public GameObject go; public float x, z, hp = 100, shakeT; public int rot; public HealthBar bar; public BoxCollider col; }
+    public class Barricade { public int id; public GameObject go; public float x, z, hp = 100, shakeT; public int rot, kind, pit; public Quaternion baseRot = Quaternion.identity; public HealthBar bar; public BoxCollider col; }
+    public class Pit { public int id; public GameObject go; public float x, z; public bool covered; }
     public class Pickup { public int id; public string kind; public PowerupDef cfg; public Models.PickupParts parts; public float x, z, t = 99, seed; }
 
     /// <summary>Verwaltet alle Server-Entitäten im Client</summary>
@@ -286,21 +287,35 @@ namespace ZA
         public Vector3 TurretMuzzle(Turret t) { var ms = t.parts.muzzles; return ms[t.muzzleIdx++ % ms.Count].position; }
 
         // ------------------------------------------------------------------ Barrikaden
-        public Barricade CreateBarricade(int id, float x, float z, int rot)
+        /// <summary>kind 0 = Barrikade, 1 = Brett (Schaufel); pit != 0: Brett liegt flach über dieser Grube (Falle, kein Hindernis)</summary>
+        public Barricade CreateBarricade(int id, float x, float z, int rot, int kind = 0, int pit = 0)
         {
-            var go = Models.BuildBarricade(); go.transform.SetParent(root, false); go.transform.position = new Vector3(x, World.GroundY(x, z), z); go.transform.rotation = Quaternion.Euler(0, rot == 1 ? 90 : 0, 0);
-            go.layer = Layers.Barricade; var col = go.AddComponent<BoxCollider>(); col.size = new Vector3(2.6f, 1.2f, 0.5f); col.center = new Vector3(0, 0.6f, 0);
+            bool cover = pit != 0, board = kind == 1;
+            var go = cover ? Models.BuildPitCover(D.pitRadius) : board ? Models.BuildBoard() : Models.BuildBarricade();
+            go.transform.SetParent(root, false); go.transform.position = new Vector3(x, World.GroundY(x, z), z);
+            var baseRot = Quaternion.Euler(0, cover ? (id * 37) % 180 : rot == 1 ? 90 : 0, 0); go.transform.rotation = baseRot;
+            BoxCollider col = null;
+            if (!cover) { go.layer = Layers.Barricade; col = go.AddComponent<BoxCollider>(); col.size = board ? new Vector3(1.6f, 0.95f, 0.4f) : new Vector3(2.6f, 1.2f, 0.5f); col.center = new Vector3(0, col.size.y / 2, 0); }
             foreach (var r in go.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = highQuality ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
-            var b = new Barricade { id = id, go = go, x = x, z = z, rot = rot, col = col };
-            b.bar = HealthBar.Create(go.transform, 1.4f, 1.7f); b.bar.gameObject.SetActive(false);
-            barricades[id] = b; fx.Burst(new Vector3(x, 0.4f, z), U.C("#8d6e63"), 12, 3, 0.12f, 0.8f, 1); return b;
+            var b = new Barricade { id = id, go = go, x = x, z = z, rot = rot, kind = kind, pit = pit, baseRot = baseRot, col = col };
+            b.bar = HealthBar.Create(go.transform, board ? 1.0f : 1.4f, cover ? 0.6f : board ? 1.25f : 1.7f); b.bar.gameObject.SetActive(false);
+            barricades[id] = b; fx.Burst(new Vector3(x, 0.4f, z), U.C("#5c4c3a"), 10, 3, 0.1f, 0.8f, 1); return b;
         }
+        // ------------------------------------------------------------------ Gruben (Schaufel)
+        public readonly Dictionary<int, Pit> pits = new Dictionary<int, Pit>();
+        public Pit CreatePit(int id, float x, float z)
+        {
+            var go = Models.BuildPit(D.pitRadius); go.transform.SetParent(root, false); go.transform.position = new Vector3(x, World.GroundY(x, z) + 0.01f, z);
+            foreach (var r in go.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = highQuality ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
+            var p = new Pit { id = id, go = go, x = x, z = z }; pits[id] = p; return p;
+        }
+        public void RemovePit(Pit p) { Object.Destroy(p.go); pits.Remove(p.id); }
         public void RemoveBarricade(Barricade b) { Object.Destroy(b.go); barricades.Remove(b.id); }
         public void UpdateBarricades(float dt)
         {
             foreach (var b in barricades.Values)
             {
-                if (b.shakeT > 0) { b.shakeT -= dt; b.go.transform.rotation = Quaternion.Euler(0, b.rot == 1 ? 90 : 0, Mathf.Sin(T * 40) * 0.03f * b.shakeT * Mathf.Rad2Deg); } else b.go.transform.rotation = Quaternion.Euler(0, b.rot == 1 ? 90 : 0, 0);
+                if (b.shakeT > 0) { b.shakeT -= dt; b.go.transform.rotation = b.baseRot * Quaternion.Euler(0, 0, Mathf.Sin(T * 40) * 0.03f * b.shakeT * Mathf.Rad2Deg); } else b.go.transform.rotation = b.baseRot;
                 b.bar.gameObject.SetActive(b.hp < 100); if (b.hp < 100) b.bar.Set(b.hp / 100f);
             }
         }
@@ -330,6 +345,7 @@ namespace ZA
             foreach (var z in new List<Zombie>(zombies.Values)) RemoveZombie(z);
             foreach (var id in new List<int>(remotes.Keys)) RemoveRemote(id);
             foreach (var t in new List<Turret>(turrets.Values)) RemoveTurret(t);
+            foreach (var p in new List<Pit>(pits.Values)) RemovePit(p);
             foreach (var b in new List<Barricade>(barricades.Values)) RemoveBarricade(b);
             foreach (var p in new List<Pickup>(pickups.Values)) RemovePickup(p);
         }

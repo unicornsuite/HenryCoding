@@ -61,12 +61,24 @@ namespace ZA
             }
             g.DebugPreviewZombies(false); g.DebugLook(Mathf.PI, -0.1f); yield return new WaitForSeconds(0.3f);
             g.DebugOpenShop(); yield return new WaitForSeconds(0.5f); yield return Shot("05_shop"); g.DebugShopTab("perks"); yield return new WaitForSeconds(0.3f); yield return Shot("06_shop_perks"); g.CloseShop(false);
-            // Barrikade platzieren (Vorbereitungsphase, Startgeld reicht): Client- und Serverprüfung
-            g.DebugLook(0.5f, -0.5f); yield return new WaitForSeconds(0.3f); string pl = g.DebugPlaceProbe("barricade"); yield return new WaitForSeconds(1.5f); yield return Shot("07t_barricade"); File.WriteAllText(Path.Combine(dir, "turret.txt"), pl + "\ndanach barrikaden=" + g.DebugBarricadeCount + " serverFehler=" + g.debugLastFail);
+            // Schaufel: kaufen, Grube graben, mit Brettern abdecken (Falle), Brett als Zaun setzen
+            var log = new System.Text.StringBuilder();
+            g.DebugBuy("shovel"); yield return new WaitForSeconds(0.6f); g.DebugBuy("boards"); yield return new WaitForSeconds(0.6f);
+            g.DebugShovel(true); g.DebugLook(Mathf.PI * 0.5f, -0.62f); yield return new WaitForSeconds(0.5f); yield return Shot("08a_shovel"); log.AppendLine(g.DebugShovelInfo());
+            log.AppendLine(g.DebugDig()); yield return new WaitForSeconds(1.3f); yield return Shot("08b_pit");
+            var pit = g.DebugNewestPit; if (pit.HasValue) { log.AppendLine(g.DebugBoardAt(pit.Value.x, pit.Value.y)); yield return new WaitForSeconds(1.2f); yield return Shot("08c_pit_covered"); }
+            g.DebugLook(Mathf.PI * 0.5f + 0.9f, -0.6f); yield return new WaitForSeconds(0.3f); log.AppendLine(g.DebugDig()); yield return new WaitForSeconds(1.0f);
+            var me = g.DebugPlayerPos; log.AppendLine(g.DebugBoardAt(me.x - 2.6f, me.z + 1.2f)); yield return new WaitForSeconds(1.2f); g.DebugLook(Mathf.PI * 0.5f + 0.5f, -0.25f); yield return new WaitForSeconds(0.3f); yield return Shot("08d_boards_overview");
+            log.AppendLine(g.DebugPits()); log.AppendLine("serverFehler=" + g.debugLastFail); File.WriteAllText(Path.Combine(dir, "shovel.txt"), log.ToString());
+            g.DebugShovel(false);
             g.DebugReady();
             yield return new WaitForSeconds(6);
             // Zombies kommen: in Richtung des nächsten Zombies schauen
             for (int i = 0; i < 6; i++) { g.DebugFaceNearestZombie(); g.DebugFire(1.0f); yield return new WaitForSeconds(1.4f); yield return Shot("07_fight_" + i); }
+            // Schaufelschlag auf den nächsten Zombie (kurzer Test)
+            g.DebugShovel(true); var slog = new System.Text.StringBuilder();
+            for (int i = 0; i < 3; i++) { g.DebugFaceNearestZombie(); yield return new WaitForSeconds(0.2f); slog.AppendLine(g.DebugShovelStrike()); yield return new WaitForSeconds(0.25f); if (i == 0) yield return Shot("08e_shovel_strike"); yield return new WaitForSeconds(0.6f); }
+            slog.AppendLine(g.DebugState()); File.WriteAllText(Path.Combine(dir, "strike.txt"), slog.ToString()); g.DebugShovel(false);
             g.DebugThrowGrenade(); yield return new WaitForSeconds(1.2f); yield return Shot("08_grenade");
             g.DebugMelee(); yield return new WaitForSeconds(0.2f); yield return Shot("09_melee"); DumpNear();
             // Mehrspieler: zum Mitspieler schauen (falls ein zweiter Client verbunden ist)

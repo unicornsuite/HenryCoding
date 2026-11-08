@@ -53,6 +53,8 @@ namespace ZA
         public List<MapDef> maps = new List<MapDef>(); public Dictionary<string, MapDef> map = new Dictionary<string, MapDef>();
         public UpgradeDef upgrade; public int upgradeMax;
         public int barricadePrice, barricadeMax; public float barricadeHp; public string barricadeName, barricadeDesc;
+        public int shovelPrice, pitMax; public float digTime, shovelReach, pitRadius, shovelHitDamage, shovelHitRange, shovelHitRate; public string shovelName, shovelDesc;
+        public int boardsPrice, boardsPack, boardsMax, boardMax; public float boardHp; public string boardsName, boardsDesc;
         public int grenadePrice, grenadeMax, grenadePack; public float grenadeDamage, grenadeSplash, grenadeFuse;
         public float meleeDamage, meleeRange, meleeRate;
         public int cratePrice; public float crateSpin; public string crateDesc;
@@ -96,6 +98,8 @@ namespace ZA
             foreach (var o in J.A(r, "items")) items.Add(new ItemDef { id = J.S(o, "id"), name = J.S(o, "name"), desc = J.S(o, "desc"), price = J.I(o, "price") });
             foreach (var o in J.A(r, "diffs")) diffs.Add(new DiffDef { id = J.S(o, "id"), name = J.S(o, "name"), desc = J.S(o, "desc") });
             var b = J.O(r, "BARRICADE"); barricadePrice = J.I(b, "price"); barricadeMax = J.I(b, "max"); barricadeHp = J.F(b, "hp"); barricadeName = J.S(b, "name"); barricadeDesc = J.S(b, "desc");
+            var sh = J.O(r, "SHOVEL"); if (sh != null) { shovelPrice = J.I(sh, "price", 350); digTime = J.F(sh, "digTime", 2.2f); shovelReach = J.F(sh, "reach", 3.2f); pitRadius = J.F(sh, "pitRadius", 1.05f); pitMax = J.I(sh, "pitMax", 24); shovelName = J.S(sh, "name", "Schaufel"); shovelDesc = J.S(sh, "desc"); shovelHitDamage = J.F(sh, "hitDamage", 110); shovelHitRange = J.F(sh, "hitRange", 2.6f); shovelHitRate = J.F(sh, "hitRate", 0.8f); }
+            var bo = J.O(r, "BOARDS"); if (bo != null) { boardsPrice = J.I(bo, "price", 160); boardsPack = J.I(bo, "pack", 4); boardsMax = J.I(bo, "max", 20); boardMax = J.I(bo, "boardMax", 40); boardHp = J.F(bo, "hp", 160); boardsName = J.S(bo, "name", "Bretter"); boardsDesc = J.S(bo, "desc"); }
             var g = J.O(r, "GRENADE"); grenadePrice = J.I(g, "price"); grenadeMax = J.I(g, "max"); grenadePack = J.I(g, "pack"); grenadeDamage = J.F(g, "damage"); grenadeSplash = J.F(g, "splash"); grenadeFuse = J.F(g, "fuse");
             var m = J.O(r, "MELEE"); meleeDamage = J.F(m, "damage"); meleeRange = J.F(m, "range"); meleeRate = J.F(m, "rate");
             var cr = J.O(r, "CRATE"); cratePrice = J.I(cr, "price"); crateSpin = J.F(cr, "spin"); crateDesc = J.S(cr, "desc");

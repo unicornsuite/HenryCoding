@@ -228,6 +228,18 @@ namespace ZA
         });
         /// <summary>Weicher Tropfen (rund, weicher Rand) für Blutpartikel</summary>
         public static Texture2D DropTex() => MakeTex("drop", 32, (px, s) => { for (int y = 0; y < s; y++) for (int x = 0; x < s; x++) { float d = Mathf.Sqrt((x - 15.5f) * (x - 15.5f) + (y - 15.5f) * (y - 15.5f)) / 15.5f; float a = Mathf.Clamp01((1 - d) * 2.2f); px[y * s + x] = new Color(1, 1, 1, a); } });
+        /// <summary>Grube von oben: fast schwarze Mitte, dunkle Erde zum Rand, unregelmäßige Kante</summary>
+        public static Texture2D PitTex() => MakeTex("pit", 128, (px, s) =>
+        {
+            for (int y = 0; y < s; y++) for (int x = 0; x < s; x++)
+            {
+                float dx = (x - 63.5f) / 63.5f, dy = (y - 63.5f) / 63.5f; float d = Mathf.Sqrt(dx * dx + dy * dy);
+                float edge = 0.78f + (Mathf.PerlinNoise(x * 0.07f + 3, y * 0.07f) - 0.5f) * 0.22f;
+                float a = Mathf.Clamp01((edge - d) * 7f);
+                float v = Mathf.Lerp(0.05f, 0.9f, Mathf.Clamp01((d - 0.3f) / 0.5f)) + (Mathf.PerlinNoise(x * 0.2f, y * 0.2f) - 0.5f) * 0.15f;
+                px[y * s + x] = new Color(v, v * 0.85f, v * 0.7f, a);
+            }
+        });
         static Material decalBase;
         /// <summary>HDRP-Decal-Grundmaterial (aus Resources, damit der Shader im Build enthalten ist)</summary>
         public static Material DecalBase => decalBase ??= Resources.Load<Material>("Shaders/Decal");

@@ -9,10 +9,10 @@ import {
   TICK_RATE, START_MONEY, PREP_TIME_FIRST, PREP_TIME, WAVE_BONUS, HIT_REWARD, PLAYER_MAX_HP, PLAYER_MAX_ARMOR,
   REVIVE_TIME, BLEEDOUT_TIME, SHOP_RADIUS, MAX_TURRETS, PLAYER_COLORS, WEAPONS, WEAPON_ORDER, TURRETS, TURRET_ORDER,
   ITEMS, ZOMBIES, ZOMBIE_TYPES, GENERATOR_HP, waveComposition, waveHpMult, waveSpeedMult, spawnInterval, maxAlive,
-  DIFFS, UPGRADE, weaponStats, GRENADE, MELEE, PERKS, MAX_PERKS, POWERUPS, POWERUP_ORDER, POWERUP_DROP, POWERUP_LIFE, CRATE, waveKind, BARRICADE,
+  DIFFS, UPGRADE, weaponStats, GRENADE, MELEE, PERKS, MAX_PERKS, POWERUPS, POWERUP_ORDER, POWERUP_DROP, POWERUP_LIFE, CRATE, waveKind, BARRICADE, SHOVEL, BOARDS,
 } from '../shared/config.js';
 import { MAPS, MAP_ORDER } from '../shared/maps.js';
-import { getSolids, buildGrid, flowField, gridLOS, pushCircleOutOfBox, dist2, GEN_SIZE, barricadeBox } from '../shared/geom.js';
+import { getSolids, buildGrid, flowField, gridLOS, pushCircleOutOfBox, dist2, GEN_SIZE, barricadeBox, pitBox } from '../shared/geom.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -70,7 +70,7 @@ function broadcast(msg, except) { const s = JSON.stringify(msg); for (const p of
 function lobbyMsg() {
   return { t: 'lobby', map: lobby.map, diff: lobby.diff, phase: lobby.phase, players: [...players.values()].map(p => ({ id: p.id, name: p.name, color: p.color, inGame: p.inGame })) };
 }
-function sendInv(p) { send(p, { t: 'inv', owned: [...p.owned], money: p.money, upg: p.upg, perks: [...p.perks], nades: p.nades, maxHp: p.maxHp }); }
+function sendInv(p) { send(p, { t: 'inv', owned: [...p.owned], money: p.money, upg: p.upg, perks: [...p.perks], nades: p.nades, maxHp: p.maxHp, shovel: !!p.shovel, boards: p.boards || 0 }); }
 function event(e) { if (G) G.events.push(e); }
 function sysChat(text) { broadcast({ t: 'chat', sys: true, text }); }
 
@@ -83,6 +83,7 @@ function resetPlayerForGame(p, i) {
   p.state = 'alive'; p.downT = 0; p.reviveProg = 0; p.reviver = null; p.revivePing = 0; p.ready = false;
   p.owned = new Set(['pistol']); p.upg = {}; p.perks = new Set(); p.nades = 0; p.inGame = true; p.lives = 2; p.selfRev = 0;
   p.waveKills = 0; p.streak = 0; p.lastKillT = -99; p.crateT = 0; p.crateItem = null;
+  p.shovel = false; p.boards = 0; p.digT = 0;
 }
 
 function startGame(mapId) {
@@ -101,7 +102,7 @@ function startGame(mapId) {
     zombies: [], turrets: [], genHp: GENERATOR_HP, wave: Number(process.env.START_WAVE) || 0, kind: 'normal', phase: 'prep', timer: PREP_TIME_FIRST, // START_WAVE nur zum Testen
     queue: [], spawnT: 0, events: [], time: 0, totalKills: 0,
     pickups: [], pu: { instakill: 0, double: 0, freeze: 0 }, spits: [],
-    barricades: [], barrBoxes: [], genSrc,
+    barricades: [], barrBoxes: [], pits: [], genSrc,
   };
   lobby.phase = 'game'; lobby.map = map.id;
   let i = 0;
@@ -112,8 +113,10 @@ function startGame(mapId) {
 }
 /** Barrikaden haben sich geändert: Kollisionskästen und Wegkosten neu berechnen */
 function rebuildBarricades() {
-  G.barrBoxes = G.barricades.map(barricadeBox);
-  G.grid.setCosts(G.barrBoxes, 40);
+  // Bretter über einer Grube sind kein Hindernis (die Falle soll begangen werden); offene Gruben kosten Zombies Umwege
+  G.barrBoxes = G.barricades.filter(b => !b.pit).map(barricadeBox);
+  const costBoxes = G.barrBoxes.map(b => ({ ...b, cost: b.kind === 'board' ? 28 : 40 })).concat(G.pits.filter(p => !p.covered).map(p => ({ ...pitBox(p, SHOVEL.pitRadius), cost: 30 })));
+  G.grid.setCosts(costBoxes, 40);
   G.genField = flowField(G.grid, G.genSrc);
   G.pfTimer = 0;
 }
@@ -368,7 +371,22 @@ function updateZombies(dt) {
       }
       if (z.wander > 0) { z.wander -= dt; dx = z.wx; dz = z.wz; }
       const len = Math.hypot(dx, dz) || 1;
-      const sp = z.speed * frozen;
+      let pitMult = 1;
+      if (z.stun > 0) { z.stun -= dt; pitMult = 0; }
+      else for (const pit of G.pits) {
+        if (dist2(z.x, z.z, pit.x, pit.z) > (SHOVEL.pitRadius * 0.85) ** 2) continue;
+        if (pit.covered) {
+          const board = G.barricades.find(b => b.id === pit.covered);
+          if (board) board.hp = 0; // bricht; der Sweep deckt die Grube wieder auf
+          pit.covered = 0; z.stun = SHOVEL.trapStun; pitMult = 0;
+          event({ e: 'pt', id: pit.id, x: r2(pit.x), z: r2(pit.z), zid: z.id });
+          console.log(`Falle: ${z.type} in Grube ${pit.id} eingebrochen`);
+          if (damageZombie(z, SHOVEL.trapDamage * (z.type === 'boss' ? 0.3 : 1), null)) break;
+        } else pitMult = SHOVEL.slow;
+        break;
+      }
+      if (z.dead) continue;
+      const sp = z.speed * frozen * pitMult;
       const k = Math.min(1, dt * 7);
       z.vx += ((dx / len) * sp - z.vx) * k;
       z.vz += ((dz / len) * sp - z.vz) * k;
@@ -513,7 +531,7 @@ function updateTurrets(dt) {
   G.zombies = G.zombies.filter(z => !z.dead);
   // zerstörte Barrikaden
   if (G.barricades.some(b => b.hp <= 0)) {
-    for (const b of G.barricades) if (b.hp <= 0) event({ e: 'bd', id: b.id, x: b.x, z: b.z });
+    for (const b of G.barricades) if (b.hp <= 0) { event({ e: 'bd', id: b.id, x: b.x, z: b.z, kind: b.kind || 'barricade' }); if (b.pit) { const pit = G.pits.find(q => q.id === b.pit); if (pit) pit.covered = 0; } }
     G.barricades = G.barricades.filter(b => b.hp > 0);
     rebuildBarricades();
   }
@@ -609,7 +627,8 @@ function snapshot() {
   }
   for (const z of G.zombies) snap.z.push([z.id, ZOMBIE_TYPES.indexOf(z.type), r2(z.x), r2(z.z), r2(z.rot), Math.max(0, Math.ceil(z.hp / z.maxHp * 100)), z.atk > 0 ? 1 : 0, z.spawnT > 0 ? 1 : 0]);
   for (const t of G.turrets) snap.tu.push([t.id, TURRET_ORDER.indexOf(t.type), r2(t.x), r2(t.z), r2(t.yaw), Math.max(0, Math.ceil(t.hp / t.maxHp * 100)), t.owner]);
-  for (const b of G.barricades) snap.ba.push([b.id, r2(b.x), r2(b.z), b.rot, Math.max(0, Math.ceil(b.hp / b.maxHp * 100))]);
+  for (const b of G.barricades) snap.ba.push([b.id, r2(b.x), r2(b.z), b.rot, Math.max(0, Math.ceil(b.hp / b.maxHp * 100)), b.kind === 'board' ? 1 : 0, b.pit || 0]);
+  snap.pi = G.pits.map(p => [p.id, r2(p.x), r2(p.z), p.covered ? 1 : 0]);
   for (const pk of G.pickups) snap.pk.push([pk.id, POWERUP_ORDER.indexOf(pk.kind), r2(pk.x), r2(pk.z), r2(pk.t)]);
   G.events = [];
   broadcast(snap);
@@ -706,6 +725,7 @@ function handle(p, m) {
       let cap;
       if (m.w === 'grenade') cap = GRENADE.damage * 1.2;
       else if (m.w === 'melee') cap = MELEE.damage * 2.2;
+      else if (m.w === 'shovel') { if (!p.shovel) break; cap = SHOVEL.hitDamage * 2.2; }
       else {
         const w = WEAPONS[m.w];
         if (!w || !p.owned.has(m.w)) break;
@@ -718,6 +738,7 @@ function handle(p, m) {
         const z = G.zombies.find(zz => zz.id === zid);
         if (!z || z.spawnT > 0) continue;
         if (m.w === 'melee' && dist2(p.x, p.z, z.x, z.z) > (MELEE.range + ZOMBIES[z.type].radius + 1) ** 2) continue;
+        if (m.w === 'shovel') { if (dist2(p.x, p.z, z.x, z.z) > (SHOVEL.hitRange + ZOMBIES[z.type].radius + 1) ** 2) continue; if (z.type !== 'boss') z.stun = Math.max(z.stun || 0, SHOVEL.hitStun); }
         const dmg = Math.max(0, Math.min(+dmgRaw || 0, cap));
         if (!seen.has(zid)) { seen.add(zid); p.money += Math.round(HIT_REWARD * (G.pu.double > 0 ? 2 : 1)); }
         damageZombie(z, dmg, p.id, !!head);
@@ -775,6 +796,16 @@ function handle(p, m) {
         p.crateT = CRATE.spin;
         event({ e: 'cs', by: p.id });
         send(p, { t: 'bought', ok: true, item: 'crate' }); sendInv(p);
+      } else if (m.item === 'shovel') {
+        if (p.shovel) { fail('Schon gekauft'); break; }
+        if (p.money < SHOVEL.price) { fail('Nicht genug Geld'); break; }
+        p.money -= SHOVEL.price; p.shovel = true;
+        send(p, { t: 'bought', ok: true, item: 'shovel' }); sendInv(p);
+      } else if (m.item === 'boards') {
+        if (p.boards >= BOARDS.max) { fail(`Maximal ${BOARDS.max} Bretter`); break; }
+        if (p.money < BOARDS.price) { fail('Nicht genug Geld'); break; }
+        p.money -= BOARDS.price; p.boards = Math.min(BOARDS.max, p.boards + BOARDS.pack);
+        send(p, { t: 'bought', ok: true, item: 'boards' }); sendInv(p);
       } else if (ITEMS[m.item]) {
         const it = ITEMS[m.item];
         if (p.money < it.price) { fail('Nicht genug Geld'); break; }
@@ -799,6 +830,24 @@ function handle(p, m) {
     case 'place': {
       if (!G) break;
       const fail = reason => send(p, { t: 'bought', ok: false, item: m.type, reason });
+      if (m.type === 'board') {
+        if (!p.shovel) { fail('Dafür brauchst du die Schaufel'); break; }
+        if (p.boards <= 0) { fail('Keine Bretter mehr – im Shop nachkaufen'); break; }
+        if (G.barricades.filter(b => b.kind === 'board').length >= BOARDS.boardMax) { fail(`Maximal ${BOARDS.boardMax} Bretter auf der Karte`); break; }
+        const x = +m.x, z = +m.z, rot = m.rot ? 1 : 0;
+        if (!isFinite(x) || !isFinite(z)) break;
+        if (dist2(x, z, p.x, p.z) > 6 * 6) { fail('Zu weit weg'); break; }
+        const b = { id: nextId++, kind: 'board', x, z, rot, hp: BOARDS.hp, maxHp: BOARDS.hp, owner: p.id, pit: 0 };
+        const pit = G.pits.find(q => !q.covered && dist2(q.x, q.z, x, z) < 0.9 * 0.9);
+        if (pit) { b.x = pit.x; b.z = pit.z; b.pit = pit.id; }
+        else if (!validBarricadeSpot(b)) { fail('Hier ist kein Platz'); break; }
+        if (pit) pit.covered = b.id;
+        p.boards--;
+        G.barricades.push(b); rebuildBarricades();
+        event({ e: 'bp', id: b.id, kind: 'board' });
+        send(p, { t: 'bought', ok: true, item: 'board' }); sendInv(p);
+        break;
+      }
       if (m.type === 'barricade') {
         if (!canShop(p)) { fail('Während einer Welle nur in der Nähe des Shop-Terminals!'); break; }
         if (p.money < BARRICADE.price) { fail('Nicht genug Geld'); break; }
@@ -828,6 +877,29 @@ function handle(p, m) {
       G.turrets.push(t);
       event({ e: 'tp', id: t.id });
       send(p, { t: 'bought', ok: true, item: m.type }); sendInv(p);
+      break;
+    }
+    case 'dig': {
+      if (!G || p.state !== 'alive') break;
+      const fail = reason => send(p, { t: 'bought', ok: false, item: 'dig', reason });
+      if (!p.shovel) { fail('Dafür brauchst du die Schaufel'); break; }
+      if (G.time < p.digT) break; // noch im Grab-Takt
+      const x = +m.x, z = +m.z;
+      if (!isFinite(x) || !isFinite(z)) break;
+      if (dist2(x, z, p.x, p.z) > (SHOVEL.reach + 1.5) ** 2) { fail('Zu weit weg'); break; }
+      if (G.pits.length >= SHOVEL.pitMax) { fail(`Maximal ${SHOVEL.pitMax} Gruben`); break; }
+      const half = G.map.size / 2 - 1.5, r = SHOVEL.pitRadius;
+      if (Math.abs(x) > half || Math.abs(z) > half) { fail('Zu nah am Rand'); break; }
+      if (G.pits.some(q => dist2(q.x, q.z, x, z) < (2 * r * 0.9) ** 2)) { fail('Hier ist schon eine Grube'); break; }
+      if (dist2(x, z, G.map.gen.x, G.map.gen.z) < 3.6 ** 2 || dist2(x, z, G.map.shop.x, G.map.shop.z) < 2.6 ** 2 || (G.map.crate && dist2(x, z, G.map.crate.x, G.map.crate.z) < 2.6 ** 2)) { fail('Nicht direkt an Generator oder Shop'); break; }
+      const box = pitBox({ x, z }, r);
+      if (G.solids.some(b => b.minY < 1.2 && boxesOverlap(box, b, 0.2))) { fail('Hier ist kein Boden zum Graben'); break; }
+      if (G.barrBoxes.some(b => boxesOverlap(box, b, 0.1))) { fail('Erst die Barrikade wegräumen'); break; }
+      if (G.turrets.some(t => dist2(t.x, t.z, x, z) < (r + 0.8) ** 2)) { fail('Zu nah am Turm'); break; }
+      if (G.map.mask && !cellFree(x, z, r * 0.7)) { fail('Hier ist kein Boden zum Graben'); break; }
+      const pit = { id: nextId++, x, z, covered: 0, owner: p.id };
+      G.pits.push(pit); p.digT = G.time + SHOVEL.digTime * 0.8; rebuildBarricades();
+      event({ e: 'dg', id: pit.id, x: r2(x), z: r2(z), by: p.id });
       break;
     }
     case 'revive': {
