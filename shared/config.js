@@ -11,7 +11,7 @@ export const PLAYER_MAX_ARMOR = 100;
 export const REVIVE_TIME = 3;           // Sekunden E halten
 export const BLEEDOUT_TIME = 30;        // Sekunden bis ein Verletzter stirbt
 export const SHOP_RADIUS = 9;           // Abstand zum Shop-Terminal während einer Welle
-export const MAX_TURRETS = 16;
+export const MAX_TURRETS = 0; // 0 = kein Turmlimit
 export const PLAYER_COLORS = ['#e53935', '#1e88e5', '#fdd835', '#8e24aa', '#fb8c00', '#00acc1', '#ec407a', '#7cb342'];
 
 // Schwierigkeit (Lobby-Auswahl)

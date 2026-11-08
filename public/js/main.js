@@ -947,7 +947,7 @@ function updatePlacing() {
   if (blocked || (isBarr ? !barricadeSpotValid(x, z, placing.rot) : !spotValid(x, z))) reason = 'Kein Platz';
   else if (me.money < cfg.price) reason = 'Zu wenig Geld';
   else if (isBarr && barricades.size >= BARRICADE.max) reason = 'Barrikaden-Limit erreicht';
-  else if (!isBarr && turrets.size >= MAX_TURRETS) reason = 'Turm-Limit erreicht';
+  else if (!isBarr && MAX_TURRETS > 0 && turrets.size >= MAX_TURRETS) reason = 'Turm-Limit erreicht';
   else if (!canShopLocal()) reason = 'Nur nahe am Shop während Wellen';
   placing.valid = !reason;
   const col = placing.valid ? '#4caf50' : '#f44336';

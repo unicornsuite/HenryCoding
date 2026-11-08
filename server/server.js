@@ -867,7 +867,7 @@ function handle(p, m) {
       if (!cfg) break;
       if (!canShop(p)) { fail('Während einer Welle nur in der Nähe des Shop-Terminals!'); break; }
       if (p.money < cfg.price) { fail('Nicht genug Geld'); break; }
-      if (G.turrets.length >= MAX_TURRETS) { fail(`Maximal ${MAX_TURRETS} Türme`); break; }
+      if (MAX_TURRETS > 0 && G.turrets.length >= MAX_TURRETS) { fail(`Maximal ${MAX_TURRETS} Türme`); break; }
       const x = +m.x, z = +m.z;
       if (!isFinite(x) || !isFinite(z)) break;
       if (!validTurretSpot(x, z)) { fail('Hier ist kein Platz'); break; }

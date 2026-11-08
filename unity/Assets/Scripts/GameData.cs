@@ -72,7 +72,7 @@ namespace ZA
         {
             raw = r;
             tickRate = J.I(r, "TICK_RATE", 20); startMoney = J.I(r, "START_MONEY", 500); playerMaxHp = J.I(r, "PLAYER_MAX_HP", 100); playerMaxArmor = J.I(r, "PLAYER_MAX_ARMOR", 100);
-            maxTurrets = J.I(r, "MAX_TURRETS", 16); maxPerks = J.I(r, "MAX_PERKS", 4); generatorHp = J.I(r, "GENERATOR_HP", 2500);
+            maxTurrets = J.I(r, "MAX_TURRETS", 0); maxPerks = J.I(r, "MAX_PERKS", 4); generatorHp = J.I(r, "GENERATOR_HP", 2500);
             reviveTime = J.F(r, "REVIVE_TIME", 3); bleedoutTime = J.F(r, "BLEEDOUT_TIME", 30); shopRadius = J.F(r, "SHOP_RADIUS", 9);
             foreach (var c in J.A(r, "PLAYER_COLORS")) playerColors.Add(c.ToString());
             var up = J.O(r, "UPGRADE");

@@ -735,7 +735,7 @@ namespace ZA
             else if (isBoard && Vector2.Distance(new Vector2(x, z), new Vector2(player.Pos.x, player.Pos.z)) > 6f) reason = "Zu weit weg";
             else if (money < price) reason = "Zu wenig Geld";
             else if (isBarr && ents.barricades.Count >= D.barricadeMax) reason = "Barrikaden-Limit erreicht";
-            else if (!isBarr && ents.turrets.Count >= D.maxTurrets) reason = "Turm-Limit erreicht";
+            else if (!isBarr && D.maxTurrets > 0 && ents.turrets.Count >= D.maxTurrets) reason = "Turm-Limit erreicht";
             else if (!isBoard && !CanShopLocal()) reason = "Nur nahe am Shop während Wellen";
             placing.valid = reason == ""; placing.reason = reason;
             var col = placing.valid ? new Color(0.3f, 0.69f, 0.31f, 0.5f) : new Color(0.96f, 0.26f, 0.21f, 0.5f);
